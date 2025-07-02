@@ -1,0 +1,336 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon/favicon-16x16.png">
+    <link rel="manifest" href="favicon/site.webmanifest">
+
+    <title>Kartenblick</title>
+
+    <!-- Leaflet css von https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css -->
+    <link rel="stylesheet" href="lib/leaflet.min.css" />
+    <!-- Leaflet js von https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js -->
+    <script src="lib/leaflet.min.js"></script>
+    <!-- Leaflet-Rotate von https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js -->
+    <script src="lib/leaflet-rotate-src.js"></script>
+    <!-- Sonnenstand von https://unpkg.com/suncalc@1.9.0/suncalc.js -->
+    <script src="lib/suncalc.js"></script>
+
+    <!-- QR generator von https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js-->
+    <script src="lib/qrious.min.js"></script>
+
+    <script src="leaflet-grids.js"></script>
+    <script src="leaflet-circles.js"></script>
+    <script src="marker.js"></script>
+    <script src="sunposition.js"></script>
+    <script src="searchForm.js"></script>
+
+    <link rel="stylesheet" href="index.css" />
+
+</head>
+
+<body>
+    <div id="options">
+        <div id="step">
+            <h4>Raster</h4>
+            <div>
+                <div data-val="36000" data-unit="sec">10°</div>
+                <div data-val="18000" data-unit="sec">5°</div>
+                <div data-val="3600" data-unit="sec">1°</div>
+                <div data-val="2700" data-unit="sec">0.75°</div>
+                <div data-val="1800" data-unit="sec">0.5°</div>
+                <div data-val="900" data-unit="sec">0.25°</div>
+                <div data-val="450" data-unit="sec">0.125°</div>
+                <div data-val="360" data-unit="sec">0.1°</div>
+                <div data-val="60" data-unit="sec">1'</div>
+                <div data-val="10" data-unit="sec">10"</div>
+                <div data-val="6" data-unit="sec">0.1'</div>
+                <div data-val="1" data-unit="sec">1"</div>
+            </div>
+        </div>
+        <div id="mapType">
+            <h4>Karten</h4>
+            <div>
+                <div data-val="0" class="active">OSM</div>
+                <div data-val="6">Open Topo</div>
+                <div data-val="4">Topo</div>
+                <div data-val="2">Luftbild</div>
+                <div data-val="1">Basemap (AT)</div>
+                <div data-val="3">Luftbild (AT)</div>
+                <div data-val="5">OEK (AT)</div>
+                <div data-val="7">OEK (1880)</div>
+                <div data-val="8">OEK (1910)</div>
+                <div data-val="9">OEK (1960)</div>
+                <div data-val="10">OEK (1980)</div>
+                <div data-val="11">ÖPNV</div>
+            </div>
+        </div>
+        <div id="searchbar">
+            <h4>Adresse suchen</h4>
+            <form id="searchForm">
+                <input type="text" name="ort" id="ort">
+                <button type="button" onclick="searchForm.search();">Gehe zu</button>
+            </form>
+        </div>
+        <div id="markers">
+            <h4>Marker</h4>
+            <div id="markerList"></div>
+        </div>
+        <div id="geolocControl">
+            <h4>Controls</h4>
+            <button id="toggleGeolocation" class="locate-button" title="Standort aktivieren"></button>
+        </div>
+        <div id="help">
+            <h4>Hilfe</h4>
+            <div>
+                <div><strong>Rechtklick oder lange drücken:</strong> Marker einfügen.</div>
+                <div><strong>GPS Symbol (Controls):</strong> GPS ein/aus.</div>
+                <div><strong>Kompassicon:</strong> Kompass ein/aus.</div>
+                <div><strong>Klick auf Marker in der Markerliste:</strong> Karte zentrieren.</div>
+                <div><strong>DEL (Marker):</strong> Marker löschen.</div>
+                <div><strong>H (Marker):</strong> Marker als Mittelpunkt definieren und Distanzkreise zeichnen.</div>
+                <div><strong>ADD (Marker):</strong> Standort als Marker hinzufügen.</div>
+            </div>
+        </div>
+    </div>
+    <button type="button" id="toggleOptionsMenu" title="Menü ein-/ausblenden">◄</button>
+    <div id="map"></div>
+
+
+    <script type="text/javascript">
+        let map = null;
+        let mapLayers = [];
+        let currentTitleLayer = null;
+        let currentGrid = null;
+
+        map = new L.Map('map', {
+            rotate: true,
+            touchGestures: true,
+            touchRotate: false,
+            touchZoom: true,
+            rotateControl: {
+                closeOnZeroBearing: false,
+                position: 'bottomright',
+
+            },
+            bearing: 0,
+            compassBearing: true,
+            zoomControl: false
+            // attributionControl: false,
+            // zoomControl: false,
+            // trackContainerMutation: false,
+            // shiftKeyRotate: false,
+            // touchGestures: true,
+
+        }).setView([47.5, 13.5], 8);
+
+        // Hack für leaflet rotate, rouchRotate wird trotz Option nicht deaktiviert,
+        // also entfernen wir die enable Funktion.
+        if (map.touchRotate) {
+            map.touchRotate.enable = () => { };
+            map.touchRotate.enabled = () => true;
+        }
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        const searchForm = new SearchForm("#searchForm");
+
+        mapLayers.push(L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('https://mapsneu.wien.gv.at/basemap/bmaphidpi/normal/google3857/{z}/{y}/{x}.jpeg', { minZoom: 8, maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }));
+        mapLayers.push(L.tileLayer('https://mapsneu.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg', { minZoom: 8, maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('https://tiles.bergfex.at/styles/bergfex-osm/{z}/{x}/{y}.jpg', { maxZoom: 19, opacity: 0.8 }));
+        mapLayers.push(L.tileLayer('https://maps.bev.gv.at/tiles/karte/{z}/{x}/{y}.png', { minZoom: 8, maxZoom: 16 }));
+        mapLayers.push(L.tileLayer('https://b.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17 }));
+        //  https://maps.bev.gv.at/tiles/EPO5/14/8936/5694.png
+        mapLayers.push(L.tileLayer('https://maps.bev.gv.at/tiles/EPO1/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 16 }));
+        mapLayers.push(L.tileLayer('https://maps.bev.gv.at/tiles/EPO2/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 14 }));
+        mapLayers.push(L.tileLayer('https://maps.bev.gv.at/tiles/EPO4/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 14 }));
+        mapLayers.push(L.tileLayer('https://maps.bev.gv.at/tiles/EPO5/{z}/{x}/{y}.png', { minZoom: 9, maxZoom: 14 }));
+        // ÖPNV
+        mapLayers.push(L.tileLayer('https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png', { maxZoom: 18 }));
+
+        mapLayers[0].addTo(map);
+
+        map.setDistanceCircles({
+            steps: [{ step: 100, minZoom: 16 }, { step: 500, minZoom: 14 },
+            { step: 1000, minZoom: 13 }, { step: 5_000, minZoom: 10 },
+            { step: 10_000, minZoom: 9 }, { step: 50_000, minZoom: 7 },
+            { step: 100_000, minZoom: 5 }, { step: 500_000, minZoom: 3 },
+            { step: 1000_000, minZoom: 0 }],
+            labels: true
+        });
+
+        // Grid step selection
+        document.querySelectorAll("#step > div > div").forEach(li => {
+            li.addEventListener("click", () => {
+                const step = parseFloat(li.dataset.val);
+                const unit = li.dataset.unit;
+                if (currentGrid !== null) currentGrid.remove();
+                if (unit === "sec") currentGrid = L.grids.dd();
+                if (unit === "m") currentGrid = L.grids.distance.metric();
+                currentGrid.options.coordinateGridSpacing = step;
+                currentGrid.addTo(map);
+            });
+        });
+
+        // Map layer switching
+        const layerLinks = document.querySelectorAll("#mapType > div > div");
+        layerLinks.forEach(li => {
+            li.addEventListener("click", (e) => {
+                const layerNr = parseInt(li.dataset.val, 10);
+                layerLinks.forEach(l=>l.classList.remove("active"));
+                li.classList.add("active");
+                mapLayers.forEach(layer => {
+                    if (Array.isArray(layer)) {
+                        layer.forEach(l => map.removeLayer(l));
+                    } else {
+                        map.removeLayer(layer);
+                    }
+                });
+                const selected = mapLayers[layerNr];
+                if (Array.isArray(selected)) {
+                    selected.forEach(l => l.addTo(map));
+                } else {
+                    selected.addTo(map);
+                }
+            });
+        });
+
+        document.getElementById("toggleOptionsMenu").addEventListener("click", () => {
+            const options = document.getElementById("options");
+            const button = document.getElementById("toggleOptionsMenu");
+            const menuVisible = !options.classList.contains("hidden");
+
+            options.classList.toggle("hidden");
+            button.textContent = menuVisible ? "►" : "◄";
+            map.invalidateSize();
+            markers.centerHomeIfInView();
+        });
+
+        // Marker Module
+        const markers = new Markers('markerList');
+        if (markers.loadMarkersFromAddress())
+            window.history.replaceState(null, "", location.protocol + '//' + location.host + location.pathname);
+        markers.setMap(map);
+        const sunPosition = new SunPosition(map);
+    </script>
+
+    <script>
+        // *****************************************************************************************
+        // GEOLOCATION
+        // *****************************************************************************************
+        let lastPositionUpdateTime = 0;
+        let watchId = null;
+        let geolocationActive = false;
+        let disableWatchPosition = false;
+
+        map.on('zoomstart', () => { disableWatchPosition = true; });
+        map.on('movestart', () => { disableWatchPosition = true; });
+        map.on('zoomend', () => {
+            disableWatchPosition = false;
+        });
+        map.on('moveend', () => {
+            disableWatchPosition = false;
+        });
+        map.on('dblclick', (e) => {
+            const latlng = [e.latlng.lat, e.latlng.lng]
+            markers.setLocation(latlng);
+            sunPosition.setHome(latlng);
+        });
+
+        document.getElementById("toggleGeolocation").addEventListener("click", () => {
+            geolocationActive = !geolocationActive;
+            if (geolocationActive) {
+                enableGeolocation();
+            } else {
+                disableGeolocation();
+            }
+        });
+
+        function enableGeolocation() {
+            if (!navigator.geolocation) {
+                alert("Geolocation wird nicht unterstützt.");
+                return;
+            }
+            const btn = document.getElementById("toggleGeolocation");
+            btn.classList.add("active");
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    if (disableWatchPosition) return;
+                    const now = Date.now();
+                    if (now - lastPositionUpdateTime < 500) return;
+
+                    const latlng = [position.coords.latitude, position.coords.longitude];
+                    markers.setLocation(latlng);
+                    sunPosition.setHome(latlng);
+                    // Nach dem Aktivieren Karte zum Standort bewegen.
+                    if (lastPositionUpdateTime === 0) {
+                        map.setView(latlng, 14);
+                    }
+                    lastPositionUpdateTime = now;
+                },
+                (err) => {
+                    console.warn('Geolocation error:', err.message);
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        function disableGeolocation() {
+            const btn = document.getElementById("toggleGeolocation");
+            btn.classList.remove("active");
+            markers.setLocation(null);
+            sunPosition.setHome(null);
+            lastPositionUpdateTime = 0;            
+
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+        }
+    </script>
+    <script>
+        // *****************************************************************************************
+        // EVENT HANDLER
+        // *****************************************************************************************        
+        searchForm.on('found', (latlng) => {
+            map.setView(latlng);
+            markers.addMarker(latlng);
+        });
+
+        markers.on('markerselected', (marker) => {
+            map.setBearing(0);
+            map.setView([marker.lat, marker.lng]);
+        });
+
+        markers.on('homeselected', (marker) => {
+            const latlng = [marker.lat, marker.lng];
+            sunPosition.setHome(latlng);
+        });
+
+        markers.on('clearall', () => {
+            geolocationActive = false;
+            disableGeolocation();
+        });
+
+        // Leaflet rotate stellt die Karte nicht zuverlässig zurück.
+        // Wir geben daher den Befehl nach 100ms noch einmal.
+        const rotateButton = document.querySelector('#map > div.leaflet-control-container > div.leaflet-bottom.leaflet-right > div.leaflet-control-rotate.leaflet-bar.leaflet-control > a');
+        if (rotateButton) {
+            rotateButton.addEventListener('click', function (event) {
+                if (!map.compassBearing.enabled())
+                    setTimeout(() => map.setBearing(0), 100);
+            });
+        } 
+    </script>
+</body>
+
+</html>

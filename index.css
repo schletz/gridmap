@@ -1,0 +1,197 @@
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: "Arial Narrow", sans-serif;
+}
+
+body {
+    display: flex;
+    flex-direction: row;
+}
+
+/* Kartenbereich nimmt gesamte Breite ein */
+#map {
+    flex-grow: 1;
+}
+
+/* Linkes Seitenmenü */
+#options {
+    display: flex;
+    flex-direction: column;
+    padding: 0.5em;
+    width: 50%;
+    max-width: 250px;
+    flex-shrink: 0;
+    row-gap: 1em;
+    border-right: 2px solid gray;
+    background-color: hsl(80 50% 96%)
+}
+
+#options>div {
+    border: 1px solid gray;
+    border-radius: 5px;
+    padding: 0.5em;
+    box-shadow: 2px 2px lightgray;
+}
+
+#options h4 {
+    margin: 0em 0em 5px 0em;
+    padding: 0;
+}
+
+#options h3 {
+    margin: 5px 0em 0em 0em;
+    padding: 0;
+}
+
+
+/* Menü ausblenden */
+#options.hidden {
+    display: none;
+}
+
+#searchForm {
+    display: flex;
+    flex-direction: column;
+    row-gap: 0.5em;
+}
+
+#searchForm input {
+    width: calc(100% - 5px);
+    border: 1px solid gray;
+    border-radius: 2px;
+}
+
+#markerList {
+    display: flex;
+    flex-direction: column;
+    row-gap: 1em;
+    font-size: 80%;
+}
+
+#markerList table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+}
+
+#markerList table th {
+    text-align: left;
+}
+
+#markerList table .position {
+    overflow: hidden;
+}
+
+#markerList td {
+    padding: 2px 4px;
+    vertical-align: top;
+}
+
+#markerList .buttonRow {
+    border-bottom: 2px solid #ddd;
+}
+
+#markerList .buttonRow td {
+    display: flex;
+    column-gap: 2em;
+}
+
+#markerList .homeRow {
+    background-color: wheat;
+}
+
+#markerList .controlButtons {
+    display: flex;
+    column-gap: 1em;
+}
+
+/* Inhalt im Menü */
+#options #step div,
+#options #mapType div {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    column-gap: 0.75em;
+    row-gap: 0.5em;
+}
+
+#mapType > div > div.active {
+    text-decoration: underline;
+}
+
+#options div>div {
+    cursor: pointer;
+}
+
+#options #help div {
+    font-size: 80%;
+}
+
+/* Menü-Button oben rechts */
+#toggleOptionsMenu {
+    position: fixed;
+    top: 100px;
+    right: 10px;
+    z-index: 1000;
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    font-size: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Grid-Labels */
+.grid-label {
+    color: #00254d;
+    font-weight: bolder;
+    text-shadow: 1px 1px 0px white, -1px 1px 0px white, 1px -1px 0px white, -1px -1px 0px white;
+}
+
+.lng {
+    transform: rotate(-90deg);
+}
+
+.distance-label {
+    color: #00254d;
+    font-weight: bolder;
+    text-shadow: 1px 1px 0px white, -1px 1px 0px white, 1px -1px 0px white, -1px -1px 0px white;
+}
+
+/* Geolocation button */
+.locate-button {
+    width: 32px;
+    height: 32px;
+    background: center/contain no-repeat url('images/satellite.svg');
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+    filter: grayscale(100%) brightness(0.6);
+    transition: filter 0.3s ease;
+}
+
+.locate-button.active {
+    filter: brightness(0) saturate(100%) invert(18%) sepia(100%) saturate(10000%) hue-rotate(0deg);
+}
+
+
+.custom-marker-icon .marker-number {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: red;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
