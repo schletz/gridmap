@@ -166,9 +166,8 @@
     <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
     <script>
-        let locationMarker = null;
         let locationCircleGroup = L.layerGroup().addTo(map);
-        let headingLine = null;
+        let locationMarker = null;
         let lastLatLng = null;
         let initialPositioned = false;
         let lastDrawTime = 0;
@@ -229,16 +228,18 @@
                 (position) => {
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     drawDistanceCircles(latlng);
-                    // Linie zur Ausrichtung anzeigen
-                    if (!headingLine) {
-                        headingLine = L.polyline([latlng, latlng], {
+                    // Blauer Punkt an der aktuellen Position
+                    if (!locationMarker) {
+                        locationMarker = L.circleMarker(latlng, {
+                            radius: 6,
                             color: '#007bff',
+                            fillColor: '#007bff',
+                            fillOpacity: 1,
                             weight: 2
                         }).addTo(map);
                     } else {
-                        headingLine.setLatLngs([latlng, headingLine.getLatLngs()[1]]);
+                        locationMarker.setLatLng(latlng);
                     }
-
                     if (!initialPositioned) {
                         map.setView(latlng, 15);
                         initialPositioned = true;
@@ -259,30 +260,6 @@
             }
         });
 
-        function handleOrientation(event) {
-            if (headingLine) {
-                const origin = headingLine.getLatLngs()[0]; // Standort
-                const heading = (360 - event.alpha) % 360;
-
-                // Entfernung zur Spitze: 60.000 Meter
-                const distance = 60000;
-                const earthRadius = 6371000;
-                const φ1 = origin.lat * Math.PI / 180;
-                const λ1 = origin.lng * Math.PI / 180;
-                const θ = heading * Math.PI / 180;
-                const δ = distance / earthRadius;
-
-                const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
-                const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
-
-                const destLat = φ2 * 180 / Math.PI;
-                const destLng = λ2 * 180 / Math.PI;
-
-                headingLine.setLatLngs([origin, [destLat, destLng]]);
-            }
-        }
-
-        window.addEventListener("deviceorientation", handleOrientation, true);
     </script>
 
 </body>
