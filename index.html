@@ -170,16 +170,11 @@
         let locationMarker = null;
         let lastLatLng = null;
         let initialPositioned = false;
-        let lastDrawTime = 0;
+        let lastPositionUpdateTime = 0;
 
 
         function drawDistanceCircles(latlng) {
-            const now = Date.now();
-            if (now - lastDrawTime < 1000) return;
-
-            lastLatLng = latlng;
             locationCircleGroup.clearLayers();
-
             const zoom = map.getZoom();
             const circleRadii = [
                 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
@@ -219,17 +214,19 @@
                     label.addTo(locationCircleGroup);
                 }
             });
-            lastDrawTime = now;
         }
 
         // Standort anzeigen
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
+                    const now = Date.now();
+                    if (now - lastPositionUpdateTime < 1000) return;
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     drawDistanceCircles(latlng);
                     // Blauer Punkt an der aktuellen Position
-                    if (!locationMarker) {
+                    if (!initialPositioned) {
+                        map.setView(latlng, 15);
                         locationMarker = L.circleMarker(latlng, {
                             radius: 6,
                             color: '#007bff',
@@ -237,13 +234,13 @@
                             fillOpacity: 1,
                             weight: 2
                         }).addTo(map);
-                    } else {
-                        locationMarker.setLatLng(latlng);
-                    }
-                    if (!initialPositioned) {
-                        map.setView(latlng, 15);
                         initialPositioned = true;
                     }
+                    else {
+                        locationMarker.setLatLng(latlng);
+                    }
+                    lastLatLng = latlng;
+                    lastPositionUpdateTime = now;
                 },
                 (err) => {
                     console.warn('Geolocation error:', err.message);
