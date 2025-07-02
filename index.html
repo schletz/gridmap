@@ -166,27 +166,26 @@
     <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 
     <script>
-        let locationCircleGroup = L.layerGroup().addTo(map);
+        const locationCircleGroup = L.layerGroup().addTo(map);
+        const labelLayerGroup = L.layerGroup().addTo(map);
         let locationMarker = null;
         let lastLatLng = null;
         let initialPositioned = false;
         let lastPositionUpdateTime = 0;
 
 
+        const circleRadii = [
+            100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
+            4000, 5000, 6000, 7000, 8000, 9000, 10000, 15000, 20000, 25000, 30000,
+            35000, 40000, 45000, 50000, 55000, 60000
+        ];
+
         function drawDistanceCircles(latlng) {
             locationCircleGroup.clearLayers();
             const zoom = map.getZoom();
-            const circleRadii = [
-                100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
-                4000, 5000, 6000, 7000, 8000, 9000, 10000, 15000, 20000, 25000, 30000,
-                35000, 40000, 45000, 50000, 55000, 60000];
-            const φ1 = latlng[0] * Math.PI / 180;
-            const λ1 = latlng[1] * Math.PI / 180;
-            const earthRadius = 6371000;
 
             circleRadii.forEach(radius => {
                 if ((radius >= 10000 || zoom >= 10) && (radius >= 1000 || zoom >= 14)) {
-                    // Kreis zeichnen
                     const circle = L.circle(latlng, {
                         radius: radius,
                         color: "#007bff",
@@ -194,24 +193,65 @@
                         fillOpacity: 0
                     });
                     circle.addTo(locationCircleGroup);
+                }
+            });
+        }
 
-                    // Label am oberen Punkt
+        function createDistanceLabel(latlng, radius, fontSize = 12, marginTop = 0, marginLeft = 0) {
+            return L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'distance-label',
+                    html: `<div style="margin-top:${marginTop}px; margin-left:${marginLeft}px; font-size:${fontSize}px; color:#00254d; font-weight:bolder;">
+                ${radius >= 1000 ? (radius / 1000) + "km" : radius + "m"}
+            </div>`,
+                    iconSize: [30, 12],
+                    iconAnchor: [15, 6]
+                })
+            });
+        }
+
+        function drawDistanceLabels(latlng) {
+            labelLayerGroup.clearLayers();
+            const zoom = map.getZoom();
+            const bounds = map.getBounds();
+
+            const viewTop = bounds.getNorth();
+            const viewBottom = bounds.getSouth();
+            const viewLeft = bounds.getWest();
+            const viewRight = bounds.getEast();
+
+            const φ1 = latlng[0] * Math.PI / 180;
+            const λ1 = latlng[1] * Math.PI / 180;
+            const earthRadius = 6371000;
+
+            circleRadii.forEach(radius => {
+                if ((radius >= 10000 || zoom >= 10) && (radius >= 1000 || zoom >= 14)) {
                     const δ = radius / earthRadius;
-                    const φ2 = φ1 + δ;
-                    const destLat = φ2 * 180 / Math.PI;
-                    const destLng = latlng[1];
 
-                    const label = L.marker([destLat, destLng], {
-                        icon: L.divIcon({
-                            className: 'distance-label',
-                            html: `<div style="font-size:12px; color:#007bff; font-weight:bolder;">
-                                ${radius >= 1000 ? (radius / 1000) + "km" : radius + "m"}
-                                </div>`,
-                            iconSize: [30, 12],
-                            iconAnchor: [15, 6]
-                        })
-                    });
-                    label.addTo(locationCircleGroup);
+                    // 1a. Direkter Nordpunkt des Kreises
+                    const circleTopLat = (φ1 + δ) * 180 / Math.PI;
+                    const circleBottomLat = (φ1 - δ) * 180 / Math.PI;
+                    if (circleTopLat <= viewTop && circleBottomLat >= viewBottom) {
+                        createDistanceLabel(L.latLng(circleTopLat, latlng[1]), radius, 12, 0, 0).addTo(labelLayerGroup);
+                        createDistanceLabel(L.latLng(circleBottomLat, latlng[1]), radius, 12, 0, 0).addTo(labelLayerGroup);
+                        return;
+                    }
+
+                    // 2. Beide Schnittpunkte mit oberem Rand (Latitude = viewTop)
+                    const φ_view = viewTop * Math.PI / 180;
+                    const cosArgTop = (Math.cos(δ) - Math.sin(φ1) * Math.sin(φ_view)) /
+                        (Math.cos(φ1) * Math.cos(φ_view));
+                    if (Math.abs(cosArgTop) <= 1) {
+                        const angle = Math.acos(cosArgTop);
+                        const λ_right = λ1 + angle;
+                        const λ_left = λ1 - angle;
+
+                        const lngRight = λ_right * 180 / Math.PI;
+                        const lngLeft = λ_left * 180 / Math.PI;
+
+                        createDistanceLabel(L.latLng(viewTop, lngRight), radius, 16, 10, 0).addTo(labelLayerGroup);
+                        createDistanceLabel(L.latLng(viewTop, lngLeft), radius, 16, 10, 0).addTo(labelLayerGroup);
+                    }
                 }
             });
         }
@@ -224,6 +264,7 @@
                     if (now - lastPositionUpdateTime < 1000) return;
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     drawDistanceCircles(latlng);
+                    drawDistanceLabels(latlng);
                     // Blauer Punkt an der aktuellen Position
                     if (!initialPositioned) {
                         map.setView(latlng, 15);
@@ -254,6 +295,13 @@
         map.on('zoomend', () => {
             if (lastLatLng) {
                 drawDistanceCircles(lastLatLng);
+                drawDistanceLabels(lastLatLng);
+            }
+        });
+
+        map.on('moveend', () => {
+            if (lastLatLng) {
+                drawDistanceLabels(lastLatLng);
             }
         });
 
