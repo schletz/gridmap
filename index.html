@@ -1,0 +1,233 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/mapbox-gl@2.9.2/dist/mapbox-gl.css" crossorigin="" />
+
+    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/esri-leaflet@^3.0.8/dist/esri-leaflet.js"></script>
+    <script src="https://unpkg.com/esri-leaflet-vector@3.1.3/dist/esri-leaflet-vector.js" crossorigin=""></script>
+
+    <script src="leaflet-grids.js"></script>
+    <script src="searchForm.js"></script>
+
+    <style type="text/css">
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0px;
+            padding: 0px;
+            font-family: sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100% - 25px);
+        }
+
+        #options {
+            height: 25px;
+        }
+
+        #options ul {
+            list-style-type: none;
+            overflow: hidden;
+            margin: 0px 0px 0px 20px;
+            padding: 0px;
+            float: left;
+        }
+
+        #options ul:first-child {
+            margin-left: 0px;
+        }
+
+        #options li {
+            float: left;
+            padding-left: 10px;
+            cursor: pointer;
+        }
+
+        .grid-label {
+            color: black;
+            font: bold 12pt sans-serif;
+            text-shadow: -2px -2px 0px yellow, -2px 2px 0px yellow, 2px -2px 0px yellow, 2px 2px 0px yellow;
+        }
+
+        .lng {
+            transform: rotate(-90deg);
+        }
+
+        .compass-icon {
+            text-align: center;
+            transform-origin: center center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="options">
+        <ul id="step">
+            <li data-val="36000" data-unit="sec">10°</li>
+            <li data-val="18000" data-unit="sec">5°</li>
+            <li data-val="3600" data-unit="sec">1°</li>
+            <li data-val="2700" data-unit="sec">0.75°</li>
+            <li data-val="1800" data-unit="sec">0.5°</li>
+            <li data-val="900" data-unit="sec">0.25°</li>
+            <li data-val="450" data-unit="sec">0.125°</li>
+            <li data-val="360" data-unit="sec">0.1°</li>
+            <li data-val="60" data-unit="sec">1'</li>
+            <li data-val="10" data-unit="sec">10"</li>
+            <li data-val="6" data-unit="sec">0.1'</li>
+            <li data-val="1" data-unit="sec">1"</li>
+            <li data-val="1000000" data-unit="m">1000km</li>
+            <li data-val="100000" data-unit="m">100km</li>
+            <li data-val="10000" data-unit="m">10km</li>
+            <li data-val="1000" data-unit="m">1km</li>
+            <li data-val="100" data-unit="m">100m</li>
+        </ul>
+        <ul id="mapType">
+            <li data-val="0">OSM</li>
+            <li data-val="1">Basemap</li>
+            <li data-val="2">Luftbild</li>
+            <li data-val="3">Topo</li>
+            <li data-val="4">OEK</li>
+        </ul>
+        <ul id="searchbar">
+            <form id="searchForm">
+                <input type="text" size=20 name="ort" id="ort">
+                <button type="button" onclick="SearchForm.searchLocation();">Gehe zu</button>
+            </form>
+        </ul>
+    </div>
+
+    <div id="map"></div>
+
+    <script type="text/javascript">
+        let map = null;
+        let mapLayers = [];
+        let currentTitleLayer = null;
+        let currentGrid = null;
+
+        map = new L.Map('map', { zoomControl: true }).setView([48, 15], 6);
+        SearchForm.mapInstance = map;
+        SearchForm.container = "#searchForm";
+
+        mapLayers.push(L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('https://mapsneu.wien.gv.at/basemap/bmaphidpi/normal/google3857/{z}/{y}/{x}.jpeg', { maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        }));
+        mapLayers.push(L.tileLayer('https://tiles.bergfex.at/styles/bergfex-osm/{z}/{x}/{y}.jpg', { maxZoom: 19 }));
+        mapLayers.push(L.tileLayer('https://tiles.bergfex.at/styles/bergfex-oek/{z}/{x}/{y}.jpg', { maxZoom: 16 }));
+
+        mapLayers[0].addTo(map);
+
+        // Grid step selection
+        document.querySelectorAll("#step li").forEach(li => {
+            li.addEventListener("click", () => {
+                const step = parseFloat(li.dataset.val);
+                const unit = li.dataset.unit;
+                if (currentGrid !== null) currentGrid.remove();
+                if (unit === "sec") currentGrid = L.grids.dd();
+                if (unit === "m") currentGrid = L.grids.distance.metric();
+                currentGrid.options.coordinateGridSpacing = step;
+                currentGrid.addTo(map);
+            });
+        });
+
+        // Map layer switching
+        document.querySelectorAll("#mapType li").forEach(li => {
+            li.addEventListener("click", () => {
+                const layerNr = parseInt(li.dataset.val, 10);
+                mapLayers.forEach(layer => {
+                    if (Array.isArray(layer)) {
+                        layer.forEach(l => map.removeLayer(l));
+                    } else {
+                        map.removeLayer(layer);
+                    }
+                });
+                const selected = mapLayers[layerNr];
+                if (Array.isArray(selected)) {
+                    selected.forEach(l => l.addTo(map));
+                } else {
+                    selected.addTo(map);
+                }
+            });
+        });
+    </script>
+    <!-- RotatedMarker Plugin -->
+    <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
+
+    <script>
+        let locationMarker = null;
+        let headingMarker = null;
+
+        // Standort anzeigen
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (position) => {
+                    const latlng = [position.coords.latitude, position.coords.longitude];
+
+                    if (!headingMarker) {
+                        headingMarker = L.marker(latlng, {
+                            icon: L.divIcon({
+                                className: 'compass-icon',
+                                html: `
+  <svg viewBox="0 0 100 100" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="50,0 90,90 50,70 10,90" fill="red" />
+  </svg>`,
+                                iconSize: [20, 20]
+                            }),
+                            rotationAngle: 0,
+                            rotationOrigin: 'center center'
+                        }).addTo(map);
+                        map.on('zoomend', updateSVGCompassSize);
+                        updateSVGCompassSize();
+                    }
+                    if (headingMarker) headingMarker.setLatLng(latlng);
+                },
+                (err) => {
+                    console.warn('Geolocation error:', err.message);
+                },
+                {
+                    enableHighAccuracy: true
+                }
+            );
+        }
+
+        // Kompassrichtung anzeigen
+        function handleOrientation(event) {
+            console.log(event);
+            if (headingMarker) {
+                headingMarker.setRotationAngle((360 - event.alpha) % 360);
+            }
+        }
+
+        function updateSVGCompassSize() {
+            if (!headingMarker) return;
+
+            const zoom = map.getZoom();
+            const size = Math.max(10, zoom * 2);
+
+            const el = headingMarker.getElement();
+            if (el) {
+                const svg = el.querySelector('svg');
+                if (svg) {
+                    svg.setAttribute('width', size);
+                    svg.setAttribute('height', size);
+                }
+            }
+        }
+        window.addEventListener("deviceorientation", handleOrientation, true);
+    </script>
+
+</body>
+
+</html>

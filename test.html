@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigator test</title>
+    <style type="text/css">
+        #log {
+            border: 1px solid gray;
+            padding: 0.5em;
+        }
+        #log p {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Geolocation Testseite</h1>
+    <div id="log">
+
+    </div>
+    <script>
+        const logElement = document.getElementById("log");
+        function log(text) {
+            const date = new Date();
+            logElement.innerHTML = `<p><small>${date.toISOString()}</small> ${text}</p>` + logElement.innerHTML;
+        }
+        function onChangePosition(position) {
+            const latlng = [position.coords.latitude, position.coords.longitude];
+            log(JSON.stringify(latlng));
+        }
+        function onChangeOrientation(event) {
+            log(`Alpha: ${event.alpha}, absolute: ${event.absolute}`);
+        }
+
+        // Standort anzeigen
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(onChangePosition,
+                err => logElement.innerText += `Geolocation error: ${err.message}`,
+                { enableHighAccuracy: true }
+            );
+        }
+        else {
+            log("navigator.geolocation not set.");
+        }
+
+        window.addEventListener("deviceorientation", onChangeOrientation);
+    </script>
+</body>
+
+</html>
