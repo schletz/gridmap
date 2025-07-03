@@ -6,12 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grid Map</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" crossorigin="" />
-    <link rel="stylesheet" href="https://unpkg.com/mapbox-gl@2.9.2/dist/mapbox-gl.css" crossorigin="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" crossorigin=""></script>
-    <script src="https://unpkg.com/esri-leaflet@^3.0.8/dist/esri-leaflet.js"></script>
-    <script src="https://unpkg.com/esri-leaflet-vector@3.1.3/dist/esri-leaflet-vector.js" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
 
     <script src="leaflet-grids.js"></script>
     <script src="searchForm.js"></script>
@@ -23,33 +25,28 @@
             height: 100%;
             margin: 0px;
             padding: 0px;
+            display: flex;
+            flex-direction: column;
             font-family: sans-serif;
         }
 
         #map {
-            width: 100%;
-            height: calc(100% - 25px);
+            flex-grow: 1;
         }
 
         #options {
-            height: 25px;
+            flex-grow: 0;
+            display: flex;
+            column-gap: 1em;
+            padding: 0.25em 1em;
         }
 
-        #options ul {
-            list-style-type: none;
-            overflow: hidden;
-            margin: 0px 0px 0px 20px;
-            padding: 0px;
-            float: left;
+        #options div {
+            display: flex;
+            column-gap: 1em;
         }
 
-        #options ul:first-child {
-            margin-left: 0px;
-        }
-
-        #options li {
-            float: left;
-            padding-left: 10px;
+        #options div > div {
             cursor: pointer;
         }
 
@@ -62,48 +59,43 @@
         .lng {
             transform: rotate(-90deg);
         }
-
-        .compass-icon {
-            text-align: center;
-            transform-origin: center center;
-        }
     </style>
 </head>
 
 <body>
     <div id="options">
-        <ul id="step">
-            <li data-val="36000" data-unit="sec">10°</li>
-            <li data-val="18000" data-unit="sec">5°</li>
-            <li data-val="3600" data-unit="sec">1°</li>
-            <li data-val="2700" data-unit="sec">0.75°</li>
-            <li data-val="1800" data-unit="sec">0.5°</li>
-            <li data-val="900" data-unit="sec">0.25°</li>
-            <li data-val="450" data-unit="sec">0.125°</li>
-            <li data-val="360" data-unit="sec">0.1°</li>
-            <li data-val="60" data-unit="sec">1'</li>
-            <li data-val="10" data-unit="sec">10"</li>
-            <li data-val="6" data-unit="sec">0.1'</li>
-            <li data-val="1" data-unit="sec">1"</li>
-            <li data-val="1000000" data-unit="m">1000km</li>
-            <li data-val="100000" data-unit="m">100km</li>
-            <li data-val="10000" data-unit="m">10km</li>
-            <li data-val="1000" data-unit="m">1km</li>
-            <li data-val="100" data-unit="m">100m</li>
-        </ul>
-        <ul id="mapType">
-            <li data-val="0">OSM</li>
-            <li data-val="1">Basemap</li>
-            <li data-val="2">Luftbild</li>
-            <li data-val="3">Topo</li>
-            <li data-val="4">OEK</li>
-        </ul>
-        <ul id="searchbar">
+        <div id="step">
+            <div data-val="36000" data-unit="sec">10°</div>
+            <div data-val="18000" data-unit="sec">5°</div>
+            <div data-val="3600" data-unit="sec">1°</div>
+            <div data-val="2700" data-unit="sec">0.75°</div>
+            <div data-val="1800" data-unit="sec">0.5°</div>
+            <div data-val="900" data-unit="sec">0.25°</div>
+            <div data-val="450" data-unit="sec">0.125°</div>
+            <div data-val="360" data-unit="sec">0.1°</div>
+            <div data-val="60" data-unit="sec">1'</div>
+            <div data-val="10" data-unit="sec">10"</div>
+            <div data-val="6" data-unit="sec">0.1'</div>
+            <div data-val="1" data-unit="sec">1"</div>
+            <div data-val="1000000" data-unit="m">1000km</div>
+            <div data-val="100000" data-unit="m">100km</div>
+            <div data-val="10000" data-unit="m">10km</div>
+            <div data-val="1000" data-unit="m">1km</div>
+            <div data-val="100" data-unit="m">100m</div>
+        </div>
+        <div id="mapType">
+            <div data-val="0">OSM</div>
+            <div data-val="1">Basemap</div>
+            <div data-val="2">Luftbild</div>
+            <div data-val="3">Topo</div>
+            <div data-val="4">OEK</div>
+        </div>
+        <div id="searchbar">
             <form id="searchForm">
                 <input type="text" size=20 name="ort" id="ort">
                 <button type="button" onclick="SearchForm.searchLocation();">Gehe zu</button>
             </form>
-        </ul>
+        </div>
     </div>
 
     <div id="map"></div>
@@ -130,7 +122,7 @@
         mapLayers[0].addTo(map);
 
         // Grid step selection
-        document.querySelectorAll("#step li").forEach(li => {
+        document.querySelectorAll("#step div").forEach(li => {
             li.addEventListener("click", () => {
                 const step = parseFloat(li.dataset.val);
                 const unit = li.dataset.unit;
@@ -143,7 +135,7 @@
         });
 
         // Map layer switching
-        document.querySelectorAll("#mapType li").forEach(li => {
+        document.querySelectorAll("#mapType div").forEach(li => {
             li.addEventListener("click", () => {
                 const layerNr = parseInt(li.dataset.val, 10);
                 mapLayers.forEach(layer => {
@@ -162,9 +154,6 @@
             });
         });
     </script>
-    <!-- RotatedMarker Plugin -->
-    <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
-
     <script>
         const locationCircleGroup = L.layerGroup().addTo(map);
         const labelLayerGroup = L.layerGroup().addTo(map);
