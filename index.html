@@ -56,6 +56,13 @@
                 <button type="button" onclick="SearchForm.searchLocation();">Gehe zu</button>
             </form>
         </div>
+        <div id="markerList">
+            <h4>Marker</h4>
+            <table id="markerTable" style="width:100%; font-size: smaller;"></table>
+        </div>
+        <div style="margin-top: 0.5em;">
+            <button id="clearAllMarkers" style="width: 100%;">Alle Marker löschen</button>
+        </div>
         <div id="geolocControl">
             <button id="toggleGeolocation" class="locate-button" title="Standort anzeigen"></button>
         </div>
@@ -127,6 +134,7 @@
         let lastPositionUpdateTime = 0;
         let watchId = null;
         let geolocationActive = false;
+        let freeze = false;   // Während Bewegungen und Zoom auf Positionsänderungen nicht reagieren.
 
         const circleRadii = [
             100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
@@ -216,7 +224,7 @@
             watchId = navigator.geolocation.watchPosition(
                 (position) => {
                     const now = Date.now();
-                    if (now - lastPositionUpdateTime < 1000) return;
+                    if (freeze || now - lastPositionUpdateTime < 1000) return;
 
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     if (!locationMarker) {
@@ -236,6 +244,7 @@
 
                     lastLatLng = latlng;
                     lastPositionUpdateTime = now;
+                    updateMarkerTable();
                 },
                 (err) => {
                     console.warn('Geolocation error:', err.message);
@@ -272,14 +281,17 @@
             }
         });
 
+        map.on('zoomstart', () => { freeze = true; });
+        map.on('movestart', () => { freeze = true; });
         map.on('zoomend', () => {
+            freeze = false;
             if (lastLatLng) {
                 drawDistanceCircles(lastLatLng);
                 drawDistanceLabels(lastLatLng);
             }
         });
-
         map.on('moveend', () => {
+            freeze = false;
             if (lastLatLng) {
                 drawDistanceLabels(lastLatLng);
             }
@@ -294,8 +306,147 @@
         });
 
     </script>
+    <script>
+        const markerLayer = L.layerGroup().addTo(map);
+        const markerColors = ['red', 'green', 'blue', 'orange', 'purple', 'brown', 'black'];
+        let markerCounter = 0;
+        const storedMarkers = JSON.parse(localStorage.getItem('customMarkers')) || [];
+        const markerObjects = [];
 
+        storedMarkers.forEach(addMarkerFromData);
 
+        function formatDistance(fromArray, toObj) {
+            const R = 6371000; // Erdradius in Metern
+            const φ1 = fromArray[0] * Math.PI / 180;
+            const φ2 = toObj.lat * Math.PI / 180;
+            const Δφ = (toObj.lat - fromArray[0]) * Math.PI / 180;
+            const Δλ = (toObj.lng - fromArray[1]) * Math.PI / 180;
+
+            const a = Math.sin(Δφ / 2) ** 2 +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            const d = R * c;
+            return d >= 1000 ? `${(d / 1000).toFixed(2)} km` : `${Math.round(d)} m`;
+        }
+
+        function addMarkerFromData(data) {
+            const { lat, lng, index } = data;
+            const color = markerColors[index % markerColors.length];
+
+            const marker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'custom-marker-icon',
+                    html: `<div class="marker-number" style="background:${color}">${index + 1}</div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(markerLayer);
+
+            marker.bindTooltip(`Marker ${index + 1}`, { permanent: false });
+            marker._markerIndex = index;
+
+            markerObjects.push(marker);
+            markerCounter = Math.max(markerCounter, index + 1);
+
+            updateMarkerTable();
+        }
+
+        function addNewMarker(latlng) {
+            const newMarkerData = {
+                lat: latlng.lat,
+                lng: latlng.lng,
+                index: markerCounter++
+            };
+
+            storedMarkers.push(newMarkerData);
+            localStorage.setItem('customMarkers', JSON.stringify(storedMarkers));
+            addMarkerFromData(newMarkerData);
+        }
+
+        function updateMarkerTable() {
+            const table = document.getElementById('markerTable');
+            table.innerHTML = '';
+
+            const header = document.createElement('tr');
+            header.innerHTML = "<th>#</th><th>Lat</th><th>Lng</th><th>Entf</th><th></th>";
+            table.appendChild(header);
+
+            storedMarkers.forEach((m, i) => {
+                const color = markerColors[i % markerColors.length];
+
+                const lat = m.lat.toFixed(6);
+                const lng = m.lng.toFixed(6);
+                const distance = lastLatLng
+                    ? formatDistance(lastLatLng, { lat: m.lat, lng: m.lng })
+                    : '-';
+
+                const row = document.createElement('tr');
+                row.style.cursor = 'pointer';
+
+                row.innerHTML = `
+            <td style="color:${color}">#${i + 1}</td>
+            <td>${lat}</td>
+            <td>${lng}</td>
+            <td>${distance}</td>
+            <td><button data-index="${i}" style="font-size: small;">🗑</button></td>
+        `;
+
+                // Klick auf Koordinaten-Zelle → Karte zentrieren
+                row.querySelector('td:nth-child(2)').addEventListener('click', () => {
+                    map.setView([m.lat, m.lng], 15);
+                });
+
+                // Löschen
+                row.querySelector('button').addEventListener('click', () => {
+                    removeMarker(i);
+                });
+
+                table.appendChild(row);
+            });
+        }
+
+        function removeMarker(index) {
+            const marker = markerObjects[index];
+            if (marker) {
+                markerLayer.removeLayer(marker);
+                markerObjects.splice(index, 1);
+                storedMarkers.splice(index, 1);
+                localStorage.setItem('customMarkers', JSON.stringify(storedMarkers));
+                updateMarkerTable();
+            }
+        }
+
+        document.getElementById('clearAllMarkers').addEventListener('click', () => {
+            markerLayer.clearLayers();
+            storedMarkers.length = 0;
+            markerObjects.length = 0;
+            markerCounter = 0;
+            localStorage.removeItem('customMarkers');
+            updateMarkerTable();
+        });
+
+        // Rechtsklick (Desktop)
+        map.on('contextmenu', (e) => {
+            addNewMarker(e.latlng);
+        });
+
+        // Langes Tippen (Mobil)
+        let touchTimer = null;
+        map.on('touchstart', (e) => {
+            if (e.originalEvent.touches.length !== 1) return;
+            touchTimer = setTimeout(() => {
+                const touch = e.originalEvent.touches[0];
+                const latlng = map.containerPointToLatLng([touch.clientX, touch.clientY]);
+                addNewMarker(latlng);
+            }, 600);
+        });
+
+        map.on('touchend', () => {
+            if (touchTimer) clearTimeout(touchTimer);
+        });
+    </script>
 </body>
 
 </html>

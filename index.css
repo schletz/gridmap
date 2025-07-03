@@ -33,7 +33,7 @@ body {
 }
 
 /* Inhalt im Menü */
-#options > div {
+#options>div {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
@@ -41,7 +41,7 @@ body {
     row-gap: 0.5em;
 }
 
-#options div > div {
+#options div>div {
     cursor: pointer;
 }
 
@@ -65,7 +65,7 @@ body {
     color: black;
     font: bold 12pt sans-serif;
     text-shadow: -2px -2px 0px yellow, -2px 2px 0px yellow,
-                 2px -2px 0px yellow, 2px 2px 0px yellow;
+        2px -2px 0px yellow, 2px 2px 0px yellow;
 }
 
 .lng {
@@ -109,4 +109,28 @@ body {
 
 .locate-button.active {
     background-color: #d00;
+}
+
+#markerList table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+#markerList td {
+    padding: 2px 4px;
+    border-bottom: 1px solid #ddd;
+}
+
+.custom-marker-icon .marker-number {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: red;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
 }
