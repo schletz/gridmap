@@ -43,6 +43,6 @@ var SearchForm = {
     },
 
     centerMap(pos) {
-        this.mapInstance.setView(pos, 11);
+        this.mapInstance.setView(pos, 15);
     }
 };

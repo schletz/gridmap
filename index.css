@@ -24,6 +24,7 @@ body {
     row-gap: 1em;
     padding: 1em;
     width: 250px;
+    max-width: 50%;
     flex-shrink: 0;
 }
 

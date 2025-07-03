@@ -129,6 +129,7 @@
     <script>
         const locationCircleGroup = L.layerGroup().addTo(map);
         const labelLayerGroup = L.layerGroup().addTo(map);
+        const markerLinesGroup = L.layerGroup().addTo(map);
         let locationMarker = null;
         let lastLatLng = null;
         let lastPositionUpdateTime = 0;
@@ -228,12 +229,14 @@
 
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     if (!locationMarker) {
-                        locationMarker = L.circleMarker(latlng, {
-                            radius: 6,
-                            color: '#007bff',
-                            fillColor: '#007bff',
-                            fillOpacity: 1,
-                            weight: 2
+                        const color = markerColors[0]; // Farbe für Marker 0
+                        locationMarker = L.marker(latlng, {
+                            icon: L.divIcon({
+                                className: 'custom-marker-icon',
+                                html: `<div class="marker-number" style="background:${color}">0</div>`,
+                                iconSize: [24, 24],
+                                iconAnchor: [12, 12]
+                            })
                         }).addTo(map);
                         map.setView(latlng, 15);
                     } else {
@@ -308,10 +311,30 @@
     </script>
     <script>
         const markerLayer = L.layerGroup().addTo(map);
-        const markerColors = ['red', 'green', 'blue', 'orange', 'purple', 'brown', 'black'];
+        const markerColors = ['#007bff', 'red', 'green', 'blue', 'orange', 'purple', 'brown', 'black'];
         let markerCounter = 0;
         const storedMarkers = JSON.parse(localStorage.getItem('customMarkers')) || [];
         const markerObjects = [];
+
+        if (lastLatLng) {
+            const color = markerColors[0];
+            const lat = lastLatLng[0].toFixed(6);
+            const lng = lastLatLng[1].toFixed(6);
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td style="color:${color}">#0</td>
+                <td>${lat}</td>
+                <td>${lng}</td>
+                <td>-</td>
+                <td></td>
+            `;
+            row.querySelector('td:nth-child(2)').addEventListener('click', () => {
+                map.setView(lastLatLng, 15);
+            });
+            table.appendChild(row);
+        }
+
 
         storedMarkers.forEach(addMarkerFromData);
 
@@ -333,7 +356,7 @@
 
         function addMarkerFromData(data) {
             const { lat, lng, index } = data;
-            const color = markerColors[index % markerColors.length];
+            const color = markerColors[index % markerColors.length + 1];
 
             const marker = L.marker([lat, lng], {
                 icon: L.divIcon({
@@ -368,14 +391,38 @@
         function updateMarkerTable() {
             const table = document.getElementById('markerTable');
             table.innerHTML = '';
+            markerLinesGroup.clearLayers(); // <-- Bestehende Linien löschen
 
             const header = document.createElement('tr');
             header.innerHTML = "<th>#</th><th>Lat</th><th>Lng</th><th>Entf</th><th></th>";
             table.appendChild(header);
 
-            storedMarkers.forEach((m, i) => {
-                const color = markerColors[i % markerColors.length];
+            // Marker 0 (aktuelle Position)
+            if (lastLatLng) {
+                const color = markerColors[0];
+                const lat = lastLatLng[0].toFixed(6);
+                const lng = lastLatLng[1].toFixed(6);
 
+                const row = document.createElement('tr');
+                row.style.cursor = 'pointer';
+                row.innerHTML = `
+                    <td style="color:${color}">#0</td>
+                    <td>${lat}</td>
+                    <td>${lng}</td>
+                    <td>-</td>
+                    <td></td>
+                `;
+                row.querySelector('td:nth-child(2)').addEventListener('click', () => {
+                    map.setView(lastLatLng, 15);
+                });
+                table.appendChild(row);
+            }
+
+            // Marker 1, 2, 3, ...
+            storedMarkers.forEach((m, i) => {
+                //const index = i + 1; // Markerindex visuell (0 ist reserviert)
+                const index = m.index + 1; // Markerindex visuell (0 ist reserviert)
+                const color = markerColors[index % markerColors.length];
                 const lat = m.lat.toFixed(6);
                 const lng = m.lng.toFixed(6);
                 const distance = lastLatLng
@@ -386,24 +433,32 @@
                 row.style.cursor = 'pointer';
 
                 row.innerHTML = `
-            <td style="color:${color}">#${i + 1}</td>
-            <td>${lat}</td>
-            <td>${lng}</td>
-            <td>${distance}</td>
-            <td><button data-index="${i}" style="font-size: small;">🗑</button></td>
-        `;
+                    <td style="color:${color}">#${index}</td>
+                    <td>${lat}</td>
+                    <td>${lng}</td>
+                    <td>${distance}</td>
+                    <td><button data-index="${i}" style="font-size: small;">🗑</button></td>
+                `;
 
-                // Klick auf Koordinaten-Zelle → Karte zentrieren
                 row.querySelector('td:nth-child(2)').addEventListener('click', () => {
                     map.setView([m.lat, m.lng], 15);
                 });
 
-                // Löschen
                 row.querySelector('button').addEventListener('click', () => {
                     removeMarker(i);
                 });
 
                 table.appendChild(row);
+
+                // Linie von lastLatLng zum Marker zeichnen
+                if (lastLatLng) {
+                    const line = L.polyline([lastLatLng, [m.lat, m.lng]], {
+                        color: color,
+                        weight: 2,
+                        opacity: 0.8
+                    });
+                    line.addTo(markerLinesGroup);
+                }
             });
         }
 
