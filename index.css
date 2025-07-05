@@ -23,8 +23,8 @@ body {
     flex-direction: column;
     row-gap: 1em;
     padding: 1em;
-    width: 250px;
-    max-width: 50%;
+    width: 50%;
+    max-width: 250px;
     flex-shrink: 0;
 }
 
@@ -134,4 +134,8 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
+
+#markerList {
+    font-size: 80%;
 }

@@ -16,6 +16,8 @@
 
 
     <script src="leaflet-grids.js"></script>
+    <script src="leaflet-circles.js"></script>
+    <script src="marker.js"></script>
     <script src="searchForm.js"></script>
 
     <link rel="stylesheet" href="index.css" />
@@ -56,13 +58,7 @@
                 <button type="button" onclick="SearchForm.searchLocation();">Gehe zu</button>
             </form>
         </div>
-        <div id="markerList">
-            <h4>Marker</h4>
-            <table id="markerTable" style="width:100%; font-size: smaller;"></table>
-        </div>
-        <div style="margin-top: 0.5em;">
-            <button id="clearAllMarkers" style="width: 100%;">Alle Marker löschen</button>
-        </div>
+        <div id="markerList"></div>
         <div id="geolocControl">
             <button id="toggleGeolocation" class="locate-button" title="Standort anzeigen"></button>
         </div>
@@ -79,6 +75,7 @@
 
         map = new L.Map('map', { zoomControl: false }).setView([48, 15], 6);
         L.control.zoom({ position: 'topright' }).addTo(map);
+
         SearchForm.mapInstance = map;
         SearchForm.container = "#searchForm";
 
@@ -92,6 +89,12 @@
         mapLayers.push(L.tileLayer('https://tiles.bergfex.at/styles/bergfex-oek/{z}/{x}/{y}.jpg', { maxZoom: 16 }));
 
         mapLayers[0].addTo(map);
+
+        map.setDistanceCircles([
+            { radius: 100, minZoom: 14 }, { radius: 200, minZoom: 14 }, { radius: 300, minZoom: 14 }, { radius: 400, minZoom: 14 }, { radius: 500, minZoom: 14 }, { radius: 600, minZoom: 14 }, { radius: 700, minZoom: 14 }, { radius: 800, minZoom: 14 }, { radius: 900, minZoom: 14 },
+            { radius: 1000, minZoom: 10 }, { radius: 2000, minZoom: 10 }, { radius: 3000, minZoom: 10 }, { radius: 4000, minZoom: 10 }, { radius: 5000, minZoom: 10 }, { radius: 6000, minZoom: 10 }, { radius: 7000, minZoom: 10 }, { radius: 8000, minZoom: 10 }, { radius: 9000, minZoom: 10 },
+            { radius: 10000, minZoom: 0 }, { radius: 15000, minZoom: 0 }, { radius: 20000, minZoom: 0 }, { radius: 25000, minZoom: 0 }, { radius: 30000, minZoom: 0 }, { radius: 35000, minZoom: 0 }, { radius: 40000, minZoom: 0 }, { radius: 45000, minZoom: 0 }, { radius: 50000, minZoom: 0 }, { radius: 55000, minZoom: 0 }, { radius: 60000, minZoom: 0 }
+        ], true);
 
         // Grid step selection
         document.querySelectorAll("#step div").forEach(li => {
@@ -125,152 +128,36 @@
                 }
             });
         });
+
+        document.getElementById("toggleOptionsMenu").addEventListener("click", () => {
+            const options = document.getElementById("options");
+            options.classList.toggle("hidden");
+            map.invalidateSize();
+        });
+
+        // Marker Module
+        const markers = new Markers('markerList');
+        markers.setMap(map);        
     </script>
+
     <script>
-        const locationCircleGroup = L.layerGroup().addTo(map);
-        const labelLayerGroup = L.layerGroup().addTo(map);
-        const markerLinesGroup = L.layerGroup().addTo(map);
-        let locationMarker = null;
-        let lastLatLng = null;
+        // *****************************************************************************************
+        // GEOLOCATION
+        // *****************************************************************************************
         let lastPositionUpdateTime = 0;
         let watchId = null;
         let geolocationActive = false;
-        let freeze = false;   // Während Bewegungen und Zoom auf Positionsänderungen nicht reagieren.
+        let disableWatchPosition = false;
 
-        const circleRadii = [
-            100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
-            4000, 5000, 6000, 7000, 8000, 9000, 10000, 15000, 20000, 25000, 30000,
-            35000, 40000, 45000, 50000, 55000, 60000
-        ];
+        map.on('zoomstart', () => { disableWatchPosition = true; });
+        map.on('movestart', () => { disableWatchPosition = true; });
+        map.on('zoomend', () => {
+            disableWatchPosition = false;
+        });
+        map.on('moveend', () => {
+            disableWatchPosition = false;
+        });
 
-        function drawDistanceCircles(latlng) {
-            locationCircleGroup.clearLayers();
-            const zoom = map.getZoom();
-
-            circleRadii.forEach(radius => {
-                if ((radius >= 10000 || zoom >= 10) && (radius >= 1000 || zoom >= 14)) {
-                    const circle = L.circle(latlng, {
-                        radius: radius,
-                        color: "#007bff",
-                        weight: 1,
-                        fillOpacity: 0
-                    });
-                    circle.addTo(locationCircleGroup);
-                }
-            });
-        }
-
-        function createDistanceLabel(latlng, radius, fontSize = 12, marginTop = 0, marginLeft = 0) {
-            return L.marker(latlng, {
-                icon: L.divIcon({
-                    className: 'distance-label',
-                    html: `<div style="margin-top:${marginTop}px; margin-left:${marginLeft}px; font-size:${fontSize}px; color:#00254d; font-weight:bolder;">
-                    ${radius >= 1000 ? (radius / 1000) + "km" : radius + "m"}
-                </div>`,
-                    iconSize: [30, 12],
-                    iconAnchor: [15, 6]
-                })
-            });
-        }
-
-        function drawDistanceLabels(latlng) {
-            labelLayerGroup.clearLayers();
-            const zoom = map.getZoom();
-            const bounds = map.getBounds();
-
-            const viewTop = bounds.getNorth();
-            const viewBottom = bounds.getSouth();
-            const viewLeft = bounds.getWest();
-            const viewRight = bounds.getEast();
-
-            const φ1 = latlng[0] * Math.PI / 180;
-            const λ1 = latlng[1] * Math.PI / 180;
-            const earthRadius = 6371000;
-
-            circleRadii.forEach(radius => {
-                if ((radius >= 10000 || zoom >= 10) && (radius >= 1000 || zoom >= 14)) {
-                    const δ = radius / earthRadius;
-
-                    const circleTopLat = (φ1 + δ) * 180 / Math.PI;
-                    const circleBottomLat = (φ1 - δ) * 180 / Math.PI;
-                    if (circleTopLat <= viewTop && circleTopLat >= viewBottom ||
-                        circleBottomLat <= viewTop && circleBottomLat >= viewBottom) {
-                        createDistanceLabel(L.latLng(circleTopLat, latlng[1]), radius, 12, 0, 0).addTo(labelLayerGroup);
-                        createDistanceLabel(L.latLng(circleBottomLat, latlng[1]), radius, 12, 0, 0).addTo(labelLayerGroup);
-                        return;
-                    }
-
-                    const φ_view = viewTop * Math.PI / 180;
-                    const cosArgTop = (Math.cos(δ) - Math.sin(φ1) * Math.sin(φ_view)) / (Math.cos(φ1) * Math.cos(φ_view));
-                    if (Math.abs(cosArgTop) <= 1) {
-                        const angle = Math.acos(cosArgTop);
-                        const λ_right = λ1 + angle;
-                        const λ_left = λ1 - angle;
-
-                        const lngRight = λ_right * 180 / Math.PI;
-                        const lngLeft = λ_left * 180 / Math.PI;
-
-                        createDistanceLabel(L.latLng(viewTop, lngRight), radius, 16, 10, 0).addTo(labelLayerGroup);
-                        createDistanceLabel(L.latLng(viewTop, lngLeft), radius, 16, 10, 0).addTo(labelLayerGroup);
-                    }
-                }
-            });
-        }
-
-        function enableGeolocation() {
-            if (!navigator.geolocation) {
-                alert("Geolocation wird nicht unterstützt.");
-                return;
-            }
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {
-                    const now = Date.now();
-                    if (freeze || now - lastPositionUpdateTime < 1000) return;
-
-                    const latlng = [position.coords.latitude, position.coords.longitude];
-                    if (!locationMarker) {
-                        const color = markerColors[0]; // Farbe für Marker 0
-                        locationMarker = L.marker(latlng, {
-                            icon: L.divIcon({
-                                className: 'custom-marker-icon',
-                                html: `<div class="marker-number" style="background:${color}">0</div>`,
-                                iconSize: [24, 24],
-                                iconAnchor: [12, 12]
-                            })
-                        }).addTo(map);
-                        map.setView(latlng, 15);
-                    } else {
-                        locationMarker.setLatLng(latlng);
-                    }
-                    drawDistanceCircles(latlng);
-                    drawDistanceLabels(latlng);
-
-                    lastLatLng = latlng;
-                    lastPositionUpdateTime = now;
-                    updateMarkerTable();
-                },
-                (err) => {
-                    console.warn('Geolocation error:', err.message);
-                },
-                { enableHighAccuracy: true }
-            );
-        }
-
-        function disableGeolocation() {
-            if (watchId !== null) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
-            locationCircleGroup.clearLayers();
-            labelLayerGroup.clearLayers();
-            if (locationMarker) {
-                map.removeLayer(locationMarker);
-                locationMarker = null;
-            }
-            lastLatLng = null;
-        }
-    </script>
-    <script>
         document.getElementById("toggleGeolocation").addEventListener("click", () => {
             geolocationActive = !geolocationActive;
             const btn = document.getElementById("toggleGeolocation");
@@ -284,223 +171,37 @@
             }
         });
 
-        map.on('zoomstart', () => { freeze = true; });
-        map.on('movestart', () => { freeze = true; });
-        map.on('zoomend', () => {
-            freeze = false;
-            if (lastLatLng) {
-                drawDistanceCircles(lastLatLng);
-                drawDistanceLabels(lastLatLng);
+        function enableGeolocation() {
+            if (!navigator.geolocation) {
+                alert("Geolocation wird nicht unterstützt.");
+                return;
             }
-        });
-        map.on('moveend', () => {
-            freeze = false;
-            if (lastLatLng) {
-                drawDistanceLabels(lastLatLng);
-            }
-        });
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    if (disableWatchPosition) return;
+                    const now = Date.now();
+                    if (now - lastPositionUpdateTime < 1000) return;
 
-    </script>
-    <script>
-        document.getElementById("toggleOptionsMenu").addEventListener("click", () => {
-            const options = document.getElementById("options");
-            options.classList.toggle("hidden");
-            map.invalidateSize();
-        });
-
-    </script>
-    <script>
-        const markerLayer = L.layerGroup().addTo(map);
-        const markerColors = ['#007bff', 'red', 'green', 'blue', 'orange', 'purple', 'brown', 'black'];
-        let markerCounter = 0;
-        const storedMarkers = JSON.parse(localStorage.getItem('customMarkers')) || [];
-        const markerObjects = [];
-
-        if (lastLatLng) {
-            const color = markerColors[0];
-            const lat = lastLatLng[0].toFixed(6);
-            const lng = lastLatLng[1].toFixed(6);
-
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td style="color:${color}">#0</td>
-                <td>${lat}</td>
-                <td>${lng}</td>
-                <td>-</td>
-                <td></td>
-            `;
-            row.querySelector('td:nth-child(2)').addEventListener('click', () => {
-                map.setView(lastLatLng, 15);
-            });
-            table.appendChild(row);
+                    const latlng = [position.coords.latitude, position.coords.longitude];
+                    markers.setHome(latlng);
+                    map.setCircleCenter(latlng);
+                    lastPositionUpdateTime = now;
+                },
+                (err) => {
+                    console.warn('Geolocation error:', err.message);
+                },
+                { enableHighAccuracy: true }
+            );
         }
 
-
-        storedMarkers.forEach(addMarkerFromData);
-
-        function formatDistance(fromArray, toObj) {
-            const R = 6371000; // Erdradius in Metern
-            const φ1 = fromArray[0] * Math.PI / 180;
-            const φ2 = toObj.lat * Math.PI / 180;
-            const Δφ = (toObj.lat - fromArray[0]) * Math.PI / 180;
-            const Δλ = (toObj.lng - fromArray[1]) * Math.PI / 180;
-
-            const a = Math.sin(Δφ / 2) ** 2 +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) ** 2;
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            const d = R * c;
-            return d >= 1000 ? `${(d / 1000).toFixed(2)} km` : `${Math.round(d)} m`;
-        }
-
-        function addMarkerFromData(data) {
-            const { lat, lng, index } = data;
-            const color = markerColors[index % markerColors.length + 1];
-
-            const marker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'custom-marker-icon',
-                    html: `<div class="marker-number" style="background:${color}">${index + 1}</div>`,
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
-                })
-            }).addTo(markerLayer);
-
-            marker.bindTooltip(`Marker ${index + 1}`, { permanent: false });
-            marker._markerIndex = index;
-
-            markerObjects.push(marker);
-            markerCounter = Math.max(markerCounter, index + 1);
-
-            updateMarkerTable();
-        }
-
-        function addNewMarker(latlng) {
-            const newMarkerData = {
-                lat: latlng.lat,
-                lng: latlng.lng,
-                index: markerCounter++
-            };
-
-            storedMarkers.push(newMarkerData);
-            localStorage.setItem('customMarkers', JSON.stringify(storedMarkers));
-            addMarkerFromData(newMarkerData);
-        }
-
-        function updateMarkerTable() {
-            const table = document.getElementById('markerTable');
-            table.innerHTML = '';
-            markerLinesGroup.clearLayers(); // <-- Bestehende Linien löschen
-
-            const header = document.createElement('tr');
-            header.innerHTML = "<th>#</th><th>Lat</th><th>Lng</th><th>Entf</th><th></th>";
-            table.appendChild(header);
-
-            // Marker 0 (aktuelle Position)
-            if (lastLatLng) {
-                const color = markerColors[0];
-                const lat = lastLatLng[0].toFixed(6);
-                const lng = lastLatLng[1].toFixed(6);
-
-                const row = document.createElement('tr');
-                row.style.cursor = 'pointer';
-                row.innerHTML = `
-                    <td style="color:${color}">#0</td>
-                    <td>${lat}</td>
-                    <td>${lng}</td>
-                    <td>-</td>
-                    <td></td>
-                `;
-                row.querySelector('td:nth-child(2)').addEventListener('click', () => {
-                    map.setView(lastLatLng, 15);
-                });
-                table.appendChild(row);
-            }
-
-            // Marker 1, 2, 3, ...
-            storedMarkers.forEach((m, i) => {
-                //const index = i + 1; // Markerindex visuell (0 ist reserviert)
-                const index = m.index + 1; // Markerindex visuell (0 ist reserviert)
-                const color = markerColors[index % markerColors.length];
-                const lat = m.lat.toFixed(6);
-                const lng = m.lng.toFixed(6);
-                const distance = lastLatLng
-                    ? formatDistance(lastLatLng, { lat: m.lat, lng: m.lng })
-                    : '-';
-
-                const row = document.createElement('tr');
-                row.style.cursor = 'pointer';
-
-                row.innerHTML = `
-                    <td style="color:${color}">#${index}</td>
-                    <td>${lat}</td>
-                    <td>${lng}</td>
-                    <td>${distance}</td>
-                    <td><button data-index="${i}" style="font-size: small;">🗑</button></td>
-                `;
-
-                row.querySelector('td:nth-child(2)').addEventListener('click', () => {
-                    map.setView([m.lat, m.lng], 15);
-                });
-
-                row.querySelector('button').addEventListener('click', () => {
-                    removeMarker(i);
-                });
-
-                table.appendChild(row);
-
-                // Linie von lastLatLng zum Marker zeichnen
-                if (lastLatLng) {
-                    const line = L.polyline([lastLatLng, [m.lat, m.lng]], {
-                        color: color,
-                        weight: 2,
-                        opacity: 0.8
-                    });
-                    line.addTo(markerLinesGroup);
-                }
-            });
-        }
-
-        function removeMarker(index) {
-            const marker = markerObjects[index];
-            if (marker) {
-                markerLayer.removeLayer(marker);
-                markerObjects.splice(index, 1);
-                storedMarkers.splice(index, 1);
-                localStorage.setItem('customMarkers', JSON.stringify(storedMarkers));
-                updateMarkerTable();
+        function disableGeolocation() {
+            if (watchId !== null) {
+                markers.setHome(null);
+                map.clearDistanceCircles();
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
             }
         }
-
-        document.getElementById('clearAllMarkers').addEventListener('click', () => {
-            markerLayer.clearLayers();
-            storedMarkers.length = 0;
-            markerObjects.length = 0;
-            markerCounter = 0;
-            localStorage.removeItem('customMarkers');
-            updateMarkerTable();
-        });
-
-        // Rechtsklick (Desktop)
-        map.on('contextmenu', (e) => {
-            addNewMarker(e.latlng);
-        });
-
-        // Langes Tippen (Mobil)
-        let touchTimer = null;
-        map.on('touchstart', (e) => {
-            if (e.originalEvent.touches.length !== 1) return;
-            touchTimer = setTimeout(() => {
-                const touch = e.originalEvent.touches[0];
-                const latlng = map.containerPointToLatLng([touch.clientX, touch.clientY]);
-                addNewMarker(latlng);
-            }, 600);
-        });
-
-        map.on('touchend', () => {
-            if (touchTimer) clearTimeout(touchTimer);
-        });
     </script>
 </body>
 
