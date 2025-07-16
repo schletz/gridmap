@@ -195,3 +195,20 @@ body {
     justify-content: center;
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 }
+
+
+    .custom-marker {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #007bff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .custom-marker svg {
+      width: 20px;
+      height: 20px;
+    }

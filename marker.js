@@ -7,6 +7,14 @@ function Markers(markersDivId) {
     markers.locationMarker = null;
     markers.homeMarker = null;
 
+    const deviceOrientationEvent = 'ondeviceorientationabsolute' in window
+        ? 'deviceorientationabsolute'
+        : ('ondeviceorientation' in window ? 'deviceorientation' : "")
+
+    if (deviceOrientationEvent) {
+        addEventListener(deviceOrientationEvent, markers.setLocationAngle.bind(markers));
+    }
+
     markers.markersTableDiv = document.createElement('div');
     markers.markersDiv.appendChild(markers.markersTableDiv);
 
@@ -116,7 +124,7 @@ Markers.prototype.removeMarker = function (id) {
 }
 
 Markers.prototype.setLocation = function (latlng) {
-    this.locationMarker = latlng ? { lat: latlng[0], lng: latlng[1], id: 0, color: '#007bff' } : null;
+    this.locationMarker = latlng ? { lat: latlng[0], lng: latlng[1], id: 0, color: '#007bff', angle: 0 } : null;
     // Wenn der aktuelle Standort auch home ist, müssen wir die Koordinaten des Home Standortes
     // auch anpassen.
     if (this.homeMarker?.id === 0) {
@@ -124,6 +132,24 @@ Markers.prototype.setLocation = function (latlng) {
     }
     this.updateMarkersLayer();
     this.updateMarkersTable();
+}
+
+Markers.prototype.setLocationAngle = function (e) {
+    if (!this.locationMarker) return;
+    const angle = e.webkitCompassHeading || e.alpha;
+    let deviceOrientation = 0;
+
+    // Safari iOS
+    if (!e.absolute && e.webkitCompassHeading) {
+        angle = 360 - angle;
+    }
+
+    // Older browsers
+    if (!e.absolute && 'undefined' !== typeof window.orientation) {
+        deviceOrientation = window.orientation;
+    }
+    this.locationMarker.angle = 360 - (angle - deviceOrientation);
+    this.updateLocationMarker();
 }
 
 Markers.prototype.setHomeMarker = function (marker, updateState = true) {
@@ -181,11 +207,35 @@ Markers.prototype.clearMarkers = function () {
     this.updateMarkersLayer();
 }
 
+Markers.prototype.updateLocationMarker = function() {
+    const markers = this;
+    if (!markers.locationMarker) return;
+    if (markers.locationMarkerMap) markers.locationMarkerMap.remove();
+
+    const locationMarkerMap = L.marker([markers.locationMarker.lat, markers.locationMarker.lng], {
+        icon: L.divIcon({
+            className: '',
+            html: `
+          <div class="custom-marker" style="transform: rotate(${markers.locationMarker.angle}deg);">
+            <svg viewBox="0 0 100 100">
+              <path d="M10,90 L50,10 L90,90 L50,70 Z" fill="white"/>
+            </svg>
+          </div>
+        `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+        })
+    });
+    locationMarkerMap.addTo(this.markersGroup);
+    markers.locationMarkerMap = locationMarkerMap;
+}
+
 Markers.prototype.updateMarkersLayer = function () {
     const markers = this;
-    this.markersGroup.clearLayers();
+    markers.markersGroup.clearLayers();
 
-    this.storedMarkers.forEach(marker => {
+    markers.updateLocationMarker();
+    markers.storedMarkers.forEach(marker => {
         L.marker([marker.lat, marker.lng], {
             icon: L.divIcon({
                 className: 'custom-marker-icon',
@@ -195,19 +245,9 @@ Markers.prototype.updateMarkersLayer = function () {
             })
         }).addTo(this.markersGroup);
     });
-    if (markers.locationMarker) {
-        L.marker([markers.locationMarker.lat, markers.locationMarker.lng], {
-            icon: L.divIcon({
-                className: 'custom-marker-icon',
-                html: `<div class="marker-number" style="background:${markers.locationMarker.color}">${markers.locationMarker.id}</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            })
-        }).addTo(this.markersGroup);
-    }
-    const homeMarker = this.homeMarker;
+    const homeMarker = markers.homeMarker;
     if (homeMarker) {
-        const markersArray = this.locationMarker ? [this.locationMarker, ...this.storedMarkers] : this.storedMarkers;
+        const markersArray = markers.locationMarker ? [markers.locationMarker, ...markers.storedMarkers] : markers.storedMarkers;
         markersArray.forEach(marker => {
             if (marker == homeMarker) return;
             const line = L.polyline([homeMarker, [marker.lat, marker.lng]], {

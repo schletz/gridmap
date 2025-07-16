@@ -15,8 +15,6 @@
     <link rel="stylesheet" href="lib/leaflet.min.css" />
     <!-- Leaflet js von https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js -->
     <script src="lib/leaflet.min.js"></script>
-    <!-- Leaflet-Rotate von https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js -->
-    <script src="lib/leaflet-rotate-src.js"></script>
     <!-- Sonnenstand von https://unpkg.com/suncalc@1.9.0/suncalc.js -->
     <script src="lib/suncalc.js"></script>
 
@@ -107,33 +105,7 @@
         let currentTitleLayer = null;
         let currentGrid = null;
 
-        map = new L.Map('map', {
-            rotate: true,
-            touchGestures: true,
-            touchRotate: false,
-            touchZoom: true,
-            rotateControl: {
-                closeOnZeroBearing: false,
-                position: 'bottomright',
-
-            },
-            bearing: 0,
-            compassBearing: true,
-            zoomControl: false
-            // attributionControl: false,
-            // zoomControl: false,
-            // trackContainerMutation: false,
-            // shiftKeyRotate: false,
-            // touchGestures: true,
-
-        }).setView([47.5, 13.5], 8);
-
-        // Hack für leaflet rotate, rouchRotate wird trotz Option nicht deaktiviert,
-        // also entfernen wir die enable Funktion.
-        if (map.touchRotate) {
-            map.touchRotate.enable = () => { };
-            map.touchRotate.enabled = () => true;
-        }
+        map = new L.Map('map', { zoomControl: false }).setView([47.5, 13.5], 8);
         L.control.zoom({ position: 'topright' }).addTo(map);
 
         const searchForm = new SearchForm("#searchForm");
@@ -307,7 +279,6 @@
         });
 
         markers.on('markerselected', (marker) => {
-            map.setBearing(0);
             map.setView([marker.lat, marker.lng]);
         });
 
@@ -320,16 +291,6 @@
             geolocationActive = false;
             disableGeolocation();
         });
-
-        // Leaflet rotate stellt die Karte nicht zuverlässig zurück.
-        // Wir geben daher den Befehl nach 100ms noch einmal.
-        const rotateButton = document.querySelector('#map > div.leaflet-control-container > div.leaflet-bottom.leaflet-right > div.leaflet-control-rotate.leaflet-bar.leaflet-control > a');
-        if (rotateButton) {
-            rotateButton.addEventListener('click', function (event) {
-                if (!map.compassBearing.enabled())
-                    setTimeout(() => map.setBearing(0), 100);
-            });
-        } 
     </script>
 </body>
 

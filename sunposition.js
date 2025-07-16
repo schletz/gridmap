@@ -57,7 +57,7 @@ SunPosition.prototype.drawVirtualSun = function (datetime) {
     // Das Sonnensymbol hat eine Größe von 20px im Durchmesser. Es soll am Bildschirmrand sichtbar sein.
     size.x -= 20;
     size.y -= 20;
-    const azimuth = (this.sunPos.azimuth + (map.getBearing() * Math.PI / 180) + Math.PI) % (2 * Math.PI);
+    const azimuth = (this.sunPos.azimuth + Math.PI) % (2 * Math.PI);
     const dx = Math.sin(azimuth);
     const dy = -Math.cos(azimuth);
 
