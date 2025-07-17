@@ -5,6 +5,7 @@ function Markers(markersDivId) {
     markers.markerColors = ['red', 'green', 'blue', '#b36b00', 'purple', 'brown', '#000099', 'black'];
     markers.eventHandler = {};
     markers.locationMarker = null;
+    markers.locationMarkerMap = null;
     markers.homeMarker = null;
 
     const deviceOrientationEvent = 'ondeviceorientationabsolute' in window
@@ -124,7 +125,10 @@ Markers.prototype.removeMarker = function (id) {
 }
 
 Markers.prototype.setLocation = function (latlng) {
-    this.locationMarker = latlng ? { lat: latlng[0], lng: latlng[1], id: 0, color: '#007bff', angle: 0 } : null;
+    this.locationMarker = latlng ? {
+        lat: latlng[0], lng: latlng[1], id: 0,
+        color: '#007bff', angle: this.locationMarker?.angle ?? 0
+    } : null;
     // Wenn der aktuelle Standort auch home ist, müssen wir die Koordinaten des Home Standortes
     // auch anpassen.
     if (this.homeMarker?.id === 0) {
@@ -136,14 +140,13 @@ Markers.prototype.setLocation = function (latlng) {
 
 Markers.prototype.setLocationAngle = function (e) {
     if (!this.locationMarker) return;
+
     const angle = e.webkitCompassHeading || e.alpha;
     let deviceOrientation = 0;
-
     // Safari iOS
     if (!e.absolute && e.webkitCompassHeading) {
         angle = 360 - angle;
     }
-
     // Older browsers
     if (!e.absolute && 'undefined' !== typeof window.orientation) {
         deviceOrientation = window.orientation;
@@ -207,26 +210,42 @@ Markers.prototype.clearMarkers = function () {
     this.updateMarkersLayer();
 }
 
-Markers.prototype.updateLocationMarker = function() {
+Markers.prototype.updateLocationMarker = function () {
     const markers = this;
-    if (!markers.locationMarker) return;
-    if (markers.locationMarkerMap) markers.locationMarkerMap.remove();
-
+    if (!markers.locationMarker) {
+        if (markers.locationMarkerMap) {
+            markers.locationMarkerMap.remove();
+            markers.locationMarkerMap = null;
+        }
+        return;
+    }
+    // Marker vorhanden? Nur Update durchführen.
+    if (markers.locationMarkerMap) {
+        markers.locationMarkerMap.setLatLng([
+            markers.locationMarker.lat,
+            markers.locationMarker.lng
+        ]);
+        // Rotation anpassen
+        const markerHtmlElement = markers.locationMarkerMap.getElement();
+        markerHtmlElement.querySelector('.custom-marker').style.transform =
+            `rotate(${markers.locationMarker.angle}deg)`;
+        return;
+    }
     const locationMarkerMap = L.marker([markers.locationMarker.lat, markers.locationMarker.lng], {
         icon: L.divIcon({
             className: '',
             html: `
-          <div class="custom-marker" style="transform: rotate(${markers.locationMarker.angle}deg);">
-            <svg viewBox="0 0 100 100">
-              <path d="M10,90 L50,10 L90,90 L50,70 Z" fill="white"/>
-            </svg>
-          </div>
-        `,
+                <div class="custom-marker" style="transform: rotate(${markers.locationMarker.angle}deg);">
+                    <svg viewBox="0 0 100 100">
+                    <path d="M10,90 L50,10 L90,90 L50,70 Z" fill="white"/>
+                    </svg>
+                </div>
+                `,
             iconSize: [24, 24],
             iconAnchor: [12, 12],
         })
     });
-    locationMarkerMap.addTo(this.markersGroup);
+    locationMarkerMap.addTo(markers.map);
     markers.locationMarkerMap = locationMarkerMap;
 }
 
