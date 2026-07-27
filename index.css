@@ -12,9 +12,17 @@ body {
     flex-direction: row;
 }
 
-/* Kartenbereich nimmt gesamte Breite ein */
+/* Kartenbereich nimmt gesamte Breite ein, die Zeitleiste sitzt darüber */
+#mapArea {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-width: 0;
+}
+
 #map {
     flex-grow: 1;
+    min-height: 0;
 }
 
 /* Linkes Seitenmenü */
@@ -131,10 +139,10 @@ body {
     font-size: 80%;
 }
 
-/* Menü-Button oben rechts */
+/* Menü-Button oben rechts, unterhalb der Zoom Controls der Karte */
 #toggleOptionsMenu {
-    position: fixed;
-    top: 100px;
+    position: absolute;
+    top: 80px;
     right: 10px;
     z-index: 1000;
     background: #007bff;
@@ -179,6 +187,135 @@ body {
 
 .locate-button.active {
     filter: brightness(0) saturate(100%) invert(18%) sepia(100%) saturate(10000%) hue-rotate(0deg);
+}
+
+/* *****************************************************************************
+   Feature Sonnenverlauf
+   ************************************************************************** */
+
+/* Sonnensymbol: schwarz = aus, gelb = ein, grau = kein Home Marker */
+.sun-button {
+    width: 32px;
+    height: 32px;
+    background: center/contain no-repeat url('images/sun.svg');
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    filter: brightness(0);
+    transition: filter 0.3s ease;
+}
+
+.sun-button.active {
+    filter: none;
+}
+
+.sun-button:disabled {
+    filter: grayscale(100%) brightness(1.15);
+    cursor: default;
+}
+
+#controls .controlButtons {
+    display: flex;
+    align-items: center;
+    column-gap: 1em;
+}
+
+/* Datumsauswahl */
+.sun-date-row {
+    display: flex;
+    align-items: center;
+    column-gap: 0.5em;
+    cursor: default;
+}
+
+.sun-date-row input {
+    flex-grow: 1;
+    min-width: 0;
+    border: 1px solid gray;
+    border-radius: 2px;
+}
+
+#sunNowButton {
+    padding: 1px 7px;
+    font-size: 15px;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+/* Solardaten */
+.sun-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 80%;
+}
+
+.sun-data-table td {
+    padding: 1px 2px;
+}
+
+.sun-data-table .sun-data-value {
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.sun-data-table .sun-data-note {
+    padding-top: 5px;
+    font-style: italic;
+}
+
+/* Zeitleiste über der Karte */
+.sun-timeline {
+    flex-shrink: 0;
+    padding-bottom: 7px;
+    background-color: #333;
+    user-select: none;
+    touch-action: none;
+}
+
+.timeline-hours {
+    position: relative;
+    height: 17px;
+    overflow: hidden;
+}
+
+.timeline-hour {
+    position: absolute;
+    top: 0;
+    height: 17px;
+    padding-left: 4px;
+    border-left: 1px solid #6d6d6d;
+    color: #f0f0f0;
+    font-size: 11px;
+    line-height: 17px;
+    white-space: nowrap;
+}
+
+.timeline-bar {
+    position: relative;
+    height: 16px;
+    margin: 0 26px;
+    border-radius: 8px;
+    background-color: #2f4468;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.timeline-knob {
+    position: absolute;
+    top: -3px;
+    height: 22px;
+    padding: 0 8px;
+    transform: translateX(-50%);
+    border: 1px solid #b26a1f;
+    border-radius: 11px;
+    background-color: #ffaa52;
+    color: #33270d;
+    font-size: 11px;
+    line-height: 22px;
+    white-space: nowrap;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
 

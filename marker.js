@@ -165,6 +165,9 @@ Markers.prototype.setHomeMarker = function (marker, updateState = true) {
         this.updateMarkersLayer();
         this.updateMarkersTable();
     }
+    // Über jede Änderung des Home Markers (auch Löschen und GPS Updates) informieren.
+    const handler = this.eventHandler['homechanged'];
+    if (handler) handler(marker);
 }
 
 // Lädt Marker vom Querystring

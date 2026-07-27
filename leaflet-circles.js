@@ -89,6 +89,7 @@ L.Map.prototype.setDistanceCircles = function (options) {
     map.circleColor = null;
     map.drawDistanceLabels = options.labels ? _drawDistanceLabels : () => { };
     map.visibleDistanceCircles = [];
+    map.distanceCirclesEnabled = true;
     map.steps = options.steps || [{ step: 1000, minZoom: 12 }]
 
     map.on('zoomend', () => {
@@ -105,6 +106,13 @@ L.Map.prototype.setCircleCenter = function (latlng, color) {
     this.drawDistanceCircles();
 }
 
+// Blendet die Entfernungskreise aus, ohne den Mittelpunkt zu verlieren. Damit können
+// andere Features (Sonnenverlauf) die Karte freiräumen und danach wieder herstellen.
+L.Map.prototype.setDistanceCirclesEnabled = function (enabled) {
+    this.distanceCirclesEnabled = enabled;
+    this.drawDistanceCircles();
+}
+
 L.Map.prototype.clearDistanceCircles = function () {
     this.distanceCircleGroup.clearLayers();
     this.labelLayerGroup.clearLayers();
@@ -113,6 +121,12 @@ L.Map.prototype.clearDistanceCircles = function () {
 
 L.Map.prototype.drawDistanceCircles = function () {
     if (!this.circleCenter) return;
+    if (!this.distanceCirclesEnabled) {
+        this.distanceCircleGroup.clearLayers();
+        this.labelLayerGroup.clearLayers();
+        this.visibleDistanceCircles = [];
+        return;
+    }
 
     const map = this;
     const zoom = map.getZoom();

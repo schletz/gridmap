@@ -24,8 +24,17 @@
     <script src="leaflet-grids.js"></script>
     <script src="leaflet-circles.js"></script>
     <script src="marker.js"></script>
-    <script src="sunposition.js"></script>
     <script src="searchForm.js"></script>
+
+    <!-- Feature Sonnenverlauf -->
+    <script src="solar-astronomy.js"></script>
+    <script src="map-canvas-overlay.js"></script>
+    <script src="sun-timeline.js"></script>
+    <script src="sun-compass.js"></script>
+    <script src="earth-shadow.js"></script>
+    <script src="sun-date-control.js"></script>
+    <script src="sun-data-panel.js"></script>
+    <script src="sun-path.js"></script>
 
     <link rel="stylesheet" href="index.css" />
 
@@ -78,15 +87,22 @@
             <h4>Marker</h4>
             <div id="markerList"></div>
         </div>
-        <div id="geolocControl">
+        <div id="sunPathControl" hidden></div>
+        <div id="sunDataPanel" hidden></div>
+        <div id="controls">
             <h4>Controls</h4>
-            <button id="toggleGeolocation" class="locate-button" title="Standort aktivieren"></button>
+            <div class="controlButtons">
+                <button id="toggleGeolocation" class="locate-button" title="Standort aktivieren"></button>
+                <button id="toggleSunPath" class="sun-button" title="Kein Marker als Home definiert"></button>
+            </div>
         </div>
         <div id="help">
             <h4>Hilfe</h4>
             <div>
                 <div><strong>Rechtklick oder lange drücken:</strong> Marker einfügen.</div>
                 <div><strong>GPS Symbol (Controls):</strong> GPS ein/aus.</div>
+                <div><strong>Sonnensymbol (Controls):</strong> Sonnenverlauf ein/aus. Benötigt einen Home Marker,
+                    blendet die Distanzkreise aus.</div>
                 <div><strong>Kompassicon:</strong> Kompass ein/aus.</div>
                 <div><strong>Klick auf Marker in der Markerliste:</strong> Karte zentrieren.</div>
                 <div><strong>DEL (Marker):</strong> Marker löschen.</div>
@@ -95,8 +111,14 @@
             </div>
         </div>
     </div>
-    <button type="button" id="toggleOptionsMenu" title="Menü ein-/ausblenden">◄</button>
-    <div id="map"></div>
+    <div id="mapArea">
+        <div id="sunTimeline" hidden></div>
+        <!-- Der Button liegt im Kartencontainer, damit er unabhängig von der Zeitleiste
+             immer unterhalb der Zoom Controls bleibt. -->
+        <div id="map">
+            <button type="button" id="toggleOptionsMenu" title="Menü ein-/ausblenden">◄</button>
+        </div>
+    </div>
 
 
     <script type="text/javascript">
@@ -175,6 +197,8 @@
             });
         });
 
+        // Der Button liegt im Kartencontainer, ein Klick darf die Karte nicht verschieben.
+        L.DomEvent.disableClickPropagation(document.getElementById("toggleOptionsMenu"));
         document.getElementById("toggleOptionsMenu").addEventListener("click", () => {
             const options = document.getElementById("options");
             const button = document.getElementById("toggleOptionsMenu");
@@ -191,7 +215,12 @@
         if (markers.loadMarkersFromAddress())
             window.history.replaceState(null, "", location.protocol + '//' + location.host + location.pathname);
         markers.setMap(map);
-        const sunPosition = new SunPosition(map);
+        const sunPath = new SunPath(map, {
+            timelineId: 'sunTimeline',
+            dateControlId: 'sunPathControl',
+            dataPanelId: 'sunDataPanel',
+            toggleButtonId: 'toggleSunPath'
+        });
     </script>
 
     <script>
@@ -214,7 +243,6 @@
         map.on('dblclick', (e) => {
             const latlng = [e.latlng.lat, e.latlng.lng]
             markers.setLocation(latlng);
-            sunPosition.setHome(latlng);
         });
 
         document.getElementById("toggleGeolocation").addEventListener("click", () => {
@@ -242,7 +270,6 @@
 
                     const latlng = [position.coords.latitude, position.coords.longitude];
                     markers.setLocation(latlng);
-                    sunPosition.setHome(latlng);
                     // Nach dem Aktivieren Karte zum Standort bewegen.
                     if (lastPositionUpdateTime === 0) {
                         map.setView(latlng, 14);
@@ -260,8 +287,7 @@
             const btn = document.getElementById("toggleGeolocation");
             btn.classList.remove("active");
             markers.setLocation(null);
-            sunPosition.setHome(null);
-            lastPositionUpdateTime = 0;            
+            lastPositionUpdateTime = 0;
 
             if (watchId !== null) {
                 navigator.geolocation.clearWatch(watchId);
@@ -282,9 +308,9 @@
             map.setView([marker.lat, marker.lng]);
         });
 
-        markers.on('homeselected', (marker) => {
-            const latlng = [marker.lat, marker.lng];
-            sunPosition.setHome(latlng);
+        // Der Sonnenverlauf wird immer für den Home Marker berechnet.
+        markers.on('homechanged', (marker) => {
+            sunPath.setHome(marker ? [marker.lat, marker.lng] : null);
         });
 
         markers.on('clearall', () => {
