@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16x16.png">
+    <link rel="manifest" href="/favicon/site.webmanifest">
+
+    <title>Kartenblick</title>
+</head>
+
+<body>
+    <div id="options">
+        <div id="step">
+            <h4>Raster</h4>
+            <div id="stepList"></div>
+        </div>
+        <div id="mapType">
+            <h4>Karten</h4>
+            <div id="mapTypeList"></div>
+        </div>
+        <div id="searchbar">
+            <h4>Adresse suchen</h4>
+            <form id="searchForm">
+                <input type="text" name="ort" id="ort">
+                <button type="submit">Gehe zu</button>
+            </form>
+        </div>
+        <div id="markers">
+            <h4>Marker</h4>
+            <div id="markerList">
+                <div id="markerTable"></div>
+                <div class="controlButtons">
+                    <button type="button" id="clearAllMarkers">Alle löschen</button>
+                    <button type="button" id="generateQrCode">QR erstellen</button>
+                </div>
+            </div>
+        </div>
+        <div id="sunPathControl" hidden></div>
+        <div id="sunDataPanel" hidden></div>
+        <div id="controls">
+            <h4>Controls</h4>
+            <div class="controlButtons">
+                <button id="toggleGeolocation" class="locate-button" title="Standort aktivieren"></button>
+                <button id="toggleSunPath" class="sun-button" title="Kein Marker als Home definiert"></button>
+            </div>
+        </div>
+        <div id="help">
+            <h4>Hilfe</h4>
+            <div>
+                <div><strong>Rechtklick oder lange drücken:</strong> Marker einfügen.</div>
+                <div><strong>GPS Symbol (Controls):</strong> GPS ein/aus.</div>
+                <div><strong>Sonnensymbol (Controls):</strong> Sonnenverlauf ein/aus. Benötigt einen Home Marker,
+                    blendet die Distanzkreise aus.</div>
+                <div><strong>Kompassicon:</strong> Kompass ein/aus.</div>
+                <div><strong>Klick auf Marker in der Markerliste:</strong> Karte zentrieren.</div>
+                <div><strong>DEL (Marker):</strong> Marker löschen.</div>
+                <div><strong>H (Marker):</strong> Marker als Mittelpunkt definieren und Distanzkreise zeichnen.</div>
+                <div><strong>ADD (Marker):</strong> Standort als Marker hinzufügen.</div>
+            </div>
+        </div>
+    </div>
+    <div id="mapArea">
+        <div id="sunTimeline" hidden></div>
+        <!-- Der Button liegt im Kartencontainer, damit er unabhängig von der Zeitleiste
+             immer unterhalb der Zoom Controls bleibt. -->
+        <div id="map">
+            <button type="button" id="toggleOptionsMenu" title="Menü ein-/ausblenden">◄</button>
+        </div>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# Rebuilds the bundle before every commit so index.html in the repository always
+# matches the sources it was generated from. Enable the hook directory once with
+#   git config core.hooksPath .githooks
+# which "npm install" does automatically through the "prepare" script.
+set -e
+
+# A commit that touches nothing but the build output must not trigger a rebuild loop.
+if [ -z "$(git diff --cached --name-only -- src public vite.config.ts package.json package-lock.json tsconfig.json)" ]; then
+    exit 0
+fi
+
+echo "pre-commit: building index.html ..."
+npm run build
+
+git add -- index.html favicon
