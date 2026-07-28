@@ -52,7 +52,7 @@ export class MarkerController extends TypedEventEmitter<MarkerControllerEvents> 
 
         this.#store.on('changed', () => this.update());
         this.#list.on('markerselected', (marker) => this.emit('markerselected', marker));
-        this.#list.on('homeselected', (marker) => this.setHome(marker));
+        this.#list.on('homeselected', (marker) => this.toggleHome(marker));
         this.#list.on('markerdeleted', (id) => this.removeMarker(id));
         this.#list.on('locationadded', (marker) => this.addMarker([marker.lat, marker.lng]));
         elements.clearButton.addEventListener('click', () => this.clear());
@@ -124,6 +124,16 @@ export class MarkerController extends TypedEventEmitter<MarkerControllerEvents> 
         if (!this.#location) return;
         this.#location = { ...this.#location, angle: heading };
         this.update();
+    }
+
+    /**
+     * Switches the home marker on or off. Choosing the current home marker again
+     * clears it, so the same button both defines and removes the home. Kept apart
+     * from setHome because the gps update in setLocation must never toggle.
+     * @param marker Marker the user selected.
+     */
+    toggleHome(marker: MapMarker): void {
+        this.setHome(this.#home?.id === marker.id ? null : marker);
     }
 
     /**

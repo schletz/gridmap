@@ -23,7 +23,7 @@ Commit neu.
 
 ## Modulüberblick
 
-Gesamt 3.543 TS-Zeilen + 376 CSS + 82 HTML.
+Gesamt 3.553 TS-Zeilen + 376 CSS + 82 HTML.
 
 | Datei | Zeilen | Verantwortung |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ Gesamt 3.543 TS-Zeilen + 376 CSS + 82 HTML.
 | [src/map/grids/MetricGrid.ts](src/map/grids/MetricGrid.ts) | 67 | Metrisches Gitter im Mercator-Plan. **Aktuell nicht über das Menü erreichbar.** |
 | [src/markers/MarkerTypes.ts](src/markers/MarkerTypes.ts) | 23 | `MapMarker`, `LocationMarker`, Farbpalette. |
 | [src/markers/MarkerStore.ts](src/markers/MarkerStore.ts) | 112 | Alleiniger Besitzer der Markerdaten, persistiert in `localStorage`. |
-| [src/markers/MarkerController.ts](src/markers/MarkerController.ts) | 180 | Klammer aus Store, Kartenlayer und Tabelle; hält GPS-Position und Home-Marker. |
+| [src/markers/MarkerController.ts](src/markers/MarkerController.ts) | 190 | Klammer aus Store, Kartenlayer und Tabelle; hält GPS-Position und Home-Marker. |
 | [src/markers/MarkerLayer.ts](src/markers/MarkerLayer.ts) | 99 | Rendert Marker, GPS-Pfeil und Home-Verbindungslinien. |
 | [src/markers/MarkerListView.ts](src/markers/MarkerListView.ts) | 135 | Markertabelle im Menü, meldet Absichten als Events. |
 | [src/markers/MarkerUrlCodec.ts](src/markers/MarkerUrlCodec.ts) | 55 | Kodierung des Markersatzes für den Querystring. |
@@ -94,6 +94,17 @@ favicon`, sofern der Commit `src`, `public` oder eine Build-Konfiguration berüh
 > **Achtung:** Der Hook ruft `npm run build` auf, also auch `tsc`. Ein Commit schlägt damit bei jedem
 > Typfehler fehl – auch bei einem Commit, der nur Dokumentation ändert, sofern gleichzeitig
 > `src` angefasst wurde.
+
+### Pflicht nach jeder Änderung an `src`
+
+**Nach jeder Änderung unter `src` ist `npm run build` auszuführen** – auch ohne anschließenden
+Commit. Grund: Die ausgelieferte Anwendung ist allein die generierte
+[index.html](index.html) im Repo-Root. Wer sie öffnet, ohne neu zu bauen, sieht den Stand des
+letzten Builds und hält eine bereits korrigierte Änderung für wirkungslos. Ein reines
+`tsc --noEmit` genügt dafür **nicht**, es schreibt kein Bundle.
+
+Wer stattdessen `npm run dev` benutzt, testet die Quellen direkt und braucht den Build erst vor dem
+Commit – den erledigt dann ohnehin der Pre-Commit-Hook.
 
 ---
 
@@ -155,10 +166,17 @@ Rechtsklick / contextmenu                MarkerController.ts:163
            └─ MarkerController.update()  MarkerController.ts:151
                 ├─ MarkerLayer.render()  MarkerLayer.ts:33
                 └─ MarkerListView.render()
-"H" in der Tabelle → setHome() → emit 'homechanged'   MarkerController.ts:133
- ├─ DistanceCircleOverlay.setCenter(pos, farbe)       App.ts:93
- └─ SunPath.setHome(pos)                              App.ts:95
+"H" in der Tabelle → toggleHome() → setHome()         MarkerController.ts:135/143
+ └─ emit 'homechanged'(marker | null)
+      ├─ DistanceCircleOverlay.setCenter(pos, farbe)  App.ts:93
+      └─ SunPath.setHome(pos)                         App.ts:95
 ```
+
+`toggleHome` schaltet um: "H" auf dem **aktuellen** Home-Marker macht ihn wieder zum gewöhnlichen
+Marker (`setHome(null)`), "H" auf einem anderen verlegt das Home dorthin. Der Umschalter sitzt
+bewusst **nicht** in `setHome`, weil `setLocation` das Home des GPS-Markers bei jeder neuen Position
+neu setzt ([MarkerController.ts:115](src/markers/MarkerController.ts#L115)) – dort würde ein Toggle
+das Home bei jedem Fix abschalten.
 
 ### Invarianten der Reihenfolge
 
