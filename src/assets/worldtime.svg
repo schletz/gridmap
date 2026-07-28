@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <clipPath id="globeClip">
+      <circle cx="16" cy="16" r="13.6" />
+    </clipPath>
+  </defs>
+  <circle cx="16" cy="16" r="13.6" fill="#d9eefc" />
+  <g clip-path="url(#globeClip)" fill="none" stroke="#d40000" stroke-width="1.6">
+    <line x1="16" y1="0" x2="16" y2="32" />
+    <ellipse cx="16" cy="16" rx="6.4" ry="13.6" />
+    <path d="M0 16 Q16 20.8 32 16" />
+    <path d="M3 8.4 Q16 12 29 8.4" />
+    <path d="M3 23.6 Q16 27.2 29 23.6" />
+  </g>
+  <!-- Terminator: rechte Halbkugel, deren Rand nach rechts gewoelbt ist. Damit
+       liegt gut ein Drittel der Kugel im Schatten, der Rest bleibt Tagseite. -->
+  <path d="M16 2.4 A13.6 13.6 0 0 1 16 29.6 A5.5 13.6 0 0 0 16 2.4 Z" fill="#0b142d" fill-opacity="0.74" />
+  <circle cx="16" cy="16" r="13.6" fill="none" stroke="#0b142d" stroke-width="1.8" />
+</svg>

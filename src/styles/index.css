@@ -197,7 +197,7 @@ body {
 }
 
 /* *****************************************************************************
-   Feature Sonnenverlauf
+   Features Sonnenverlauf und Weltzeit
    ************************************************************************** */
 
 /* Sonnensymbol: schwarz = aus, gelb = ein, grau = kein Home Marker */
@@ -222,13 +222,32 @@ body {
     cursor: default;
 }
 
+/* Erdkugel mit Schatten: grau = aus, farbig = ein. Immer bedienbar, das Feature
+   braucht keinen Home Marker. Kein brightness(0) wie beim Sonnensymbol, sonst
+   ginge der Kontrast zwischen Tag- und Nachtseite verloren. */
+.world-time-button {
+    width: 32px;
+    height: 32px;
+    background: center/contain no-repeat url('../assets/worldtime.svg');
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    filter: grayscale(100%) brightness(0.6);
+    transition: filter 0.3s ease;
+}
+
+.world-time-button.active {
+    filter: none;
+}
+
 #controls .controlButtons {
     display: flex;
     align-items: center;
     column-gap: 1em;
 }
 
-/* Datumsauswahl */
+/* Datumsauswahl, von beiden Features gemeinsam genutzt */
 .sun-date-row {
     display: flex;
     align-items: center;

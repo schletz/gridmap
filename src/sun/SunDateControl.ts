@@ -8,8 +8,9 @@ interface SunDateControlEvents extends Record<string, unknown[]> {
 }
 
 /**
- * Menu block "Sonnenverlauf": calendar to pick the day of the calculation and a
- * refresh button that jumps back to the current date and time.
+ * Menu block "Zeitpunkt": calendar to pick the day of the calculation and a
+ * refresh button that jumps back to the current date and time. The block is
+ * shared by every time dependent feature, therefore its heading names no feature.
  */
 export class SunDateControl extends TypedEventEmitter<SunDateControlEvents> {
     readonly #input: HTMLInputElement;
@@ -20,7 +21,7 @@ export class SunDateControl extends TypedEventEmitter<SunDateControlEvents> {
     constructor(container: HTMLElement) {
         super();
         container.innerHTML = `
-            <h4>Sonnenverlauf</h4>
+            <h4>Zeitpunkt</h4>
             <div class="sun-date-row">
                 <input type="date" id="sunDateInput">
                 <button type="button" id="sunNowButton" title="Aktuelles Datum und aktuelle Uhrzeit übernehmen">⟳</button>

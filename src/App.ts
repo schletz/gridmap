@@ -7,6 +7,8 @@ import { MarkerController } from './markers/MarkerController';
 import { QrCodeExport } from './markers/QrCodeExport';
 import { AddressSearch } from './search/AddressSearch';
 import { SunPath } from './sun/SunPath';
+import { TimeSelection } from './sun/TimeSelection';
+import { WorldTime } from './sun/WorldTime';
 import { GridSelector } from './ui/GridSelector';
 import { MapLayerSelector } from './ui/MapLayerSelector';
 import { OptionsMenu } from './ui/OptionsMenu';
@@ -38,7 +40,9 @@ export class App {
     readonly #map: L.Map;
     readonly #circles: DistanceCircleOverlay;
     readonly #markers: MarkerController;
+    readonly #time: TimeSelection;
     readonly #sunPath: SunPath;
+    readonly #worldTime: WorldTime;
     readonly #geolocation: GeolocationTracker;
     /** True while the user pans or zooms; gps updates are ignored then. */
     #userIsMoving = false;
@@ -54,7 +58,13 @@ export class App {
 
         this.#circles = new DistanceCircleOverlay(this.#map, { steps: CIRCLE_STEPS, labels: true });
         this.#markers = this.createMarkers();
+        this.#time = new TimeSelection({
+            timeline: requireElement('sunTimeline'),
+            dateControl: requireElement('sunPathControl')
+        });
         this.#sunPath = this.createSunPath();
+        this.#worldTime = this.createWorldTime();
+        this.connectTimeSelection();
         this.#geolocation = this.createGeolocation();
 
         this.createSearch();
@@ -98,14 +108,42 @@ export class App {
     /** Creates the sun path feature. */
     private createSunPath(): SunPath {
         const sunPath = new SunPath(this.#map, {
-            timeline: requireElement('sunTimeline'),
-            dateControl: requireElement('sunPathControl'),
             dataPanel: requireElement('sunDataPanel'),
             toggleButton: requireElement('toggleSunPath', HTMLButtonElement)
         });
         // The distance circles around the home marker would cover the bearing circle.
         sunPath.on('activechanged', (active) => this.#circles.setEnabled(!active));
+        // Only the sun path knows the home position, so only it can supply the
+        // brightness of the timeline - also while the feature itself is off.
+        sunPath.on('daychanged', (day) => this.#time.setDay(day));
         return sunPath;
+    }
+
+    /** Creates the world time feature: earth shadow and true local time grid. */
+    private createWorldTime(): WorldTime {
+        return new WorldTime(this.#map, requireElement('toggleWorldTime', HTMLButtonElement));
+    }
+
+    /**
+     * Connects the shared moment selection to both time dependent features. Its
+     * controls are visible as soon as one of the two features is switched on.
+     */
+    private connectTimeSelection(): void {
+        this.#time.on('daychanged', (date) => this.#sunPath.setDate(date));
+        this.#time.on('momentchanged', (moment) => {
+            this.#sunPath.setMoment(moment);
+            this.#worldTime.setTime(moment);
+        });
+        // The timeline takes space away from the map.
+        this.#time.on('visibilitychanged', () => this.#map.invalidateSize());
+
+        const updateControls = (): void =>
+            this.#time.setVisible(this.#sunPath.isActive() || this.#worldTime.isActive());
+        this.#sunPath.on('activechanged', updateControls);
+        this.#worldTime.on('activechanged', updateControls);
+
+        // Both features were created without a moment; hand them the current one.
+        this.#time.refresh();
     }
 
     /** Creates the gps tracking and its toggle button. */

@@ -48,10 +48,14 @@ export interface SolarEvents {
     readonly alwaysBelow: boolean;
 }
 
-/** Everything that is known about one local day at one location. */
-export interface SolarDayInfo {
+/** Start and end of a local day, both at local midnight. */
+export interface DayBounds {
     readonly start: Date;
     readonly end: Date;
+}
+
+/** Everything that is known about one local day at one location. */
+export interface SolarDayInfo extends DayBounds {
     readonly samples: readonly SolarSample[];
     readonly dawn: Date | null;
     readonly sunrise: Date | null;
@@ -95,7 +99,7 @@ export interface EquatorialPosition {
  * 23 or 25 hours long.
  * @param date Any moment within the wanted local day.
  */
-export function getDayBounds(date: Date): { start: Date; end: Date } {
+export function getDayBounds(date: Date): DayBounds {
     return {
         start: new Date(date.getFullYear(), date.getMonth(), date.getDate()),
         end: new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)

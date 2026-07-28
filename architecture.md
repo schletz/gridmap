@@ -11,8 +11,9 @@ HTML-Datei** ([index.html](index.html), Build-Ergebnis) für GitHub Pages ausgel
 - Koordinatengitter mit wählbarer Abstufung von 10° bis 1".
 - Adresssuche über Nominatim.
 - GPS-Position und Gerätekompass (Pfeilmarker mit Drehung).
-- Sonnenverlauf: Peilkreis mit Tagesbogen, Zeitleiste, Solardaten, Erdschatten und ein Gitter der
-  wahren Ortszeit.
+- Sonnenverlauf: Peilkreis mit Tagesbogen und Solardaten für den Home-Marker.
+- Weltzeit: Erdschatten und ein Gitter der wahren Ortszeit, ohne Bezugspunkt.
+- Zeitleiste und Datumsauswahl gehören beiden Features gemeinsam.
 - Export des Markersatzes als QR-Code / Link, Import über den Querystring.
 
 Kein Backend, kein Build-Server: Vite bündelt alles zu einer Datei, ein Git-Hook baut vor jedem
@@ -22,14 +23,14 @@ Commit neu.
 
 ## Modulüberblick
 
-Gesamt 3.308 TS-Zeilen + 357 CSS + 78 HTML.
+Gesamt 3.543 TS-Zeilen + 376 CSS + 82 HTML.
 
 | Datei | Zeilen | Verantwortung |
 | --- | --- | --- |
 | [src/main.ts](src/main.ts) | 5 | Einstiegspunkt: CSS importieren, `new App()`. |
-| [src/App.ts](src/App.ts) | 158 | Composition Root: erzeugt Karte + alle Features und verdrahtet deren Events. Enthält selbst keine Fachlogik. |
-| [src/index.html](src/index.html) | 78 | Statisches DOM-Gerüst. Alle IDs, die `requireElement` erwartet, stehen hier. |
-| [src/styles/index.css](src/styles/index.css) | 357 | Layout (Flexbox: Menü links, Kartenbereich rechts), Marker-, Grid- und Sonnenverlauf-Styles. |
+| [src/App.ts](src/App.ts) | 196 | Composition Root: erzeugt Karte + alle Features und verdrahtet deren Events. Enthält selbst keine Fachlogik. |
+| [src/index.html](src/index.html) | 82 | Statisches DOM-Gerüst. Alle IDs, die `requireElement` erwartet, stehen hier. |
+| [src/styles/index.css](src/styles/index.css) | 376 | Layout (Flexbox: Menü links, Kartenbereich rechts), Marker-, Grid-, Sonnenverlauf- und Weltzeit-Styles. |
 | [src/core/Dom.ts](src/core/Dom.ts) | 15 | `requireElement` – Typ-geprüfter `getElementById`, wirft bei fehlendem Element. |
 | [src/core/Geo.ts](src/core/Geo.ts) | 11 | `LatLngTuple`, `EARTH_RADIUS`, Grad/Bogenmaß. |
 | [src/core/TypedEventEmitter.ts](src/core/TypedEventEmitter.ts) | 58 | Typisierte Pub/Sub-Basisklasse; Basis fast aller Feature-Klassen. |
@@ -50,13 +51,15 @@ Gesamt 3.308 TS-Zeilen + 357 CSS + 78 HTML.
 | [src/search/AddressSearch.ts](src/search/AddressSearch.ts) | 56 | Nominatim-Geocoding. |
 | [src/geolocation/GeolocationTracker.ts](src/geolocation/GeolocationTracker.ts) | 87 | `watchPosition` mit Drosselung. |
 | [src/geolocation/DeviceOrientationTracker.ts](src/geolocation/DeviceOrientationTracker.ts) | 44 | Gerätekompass. |
-| [src/sun/SolarAstronomy.ts](src/sun/SolarAstronomy.ts) | 411 | Zustandslose Sonnengeometrie über SunCalc. Kernstück des Sonnen-Features. |
-| [src/sun/SunPath.ts](src/sun/SunPath.ts) | 189 | Feature-Koordinator "Sonnenverlauf". |
+| [src/sun/SolarAstronomy.ts](src/sun/SolarAstronomy.ts) | 415 | Zustandslose Sonnengeometrie über SunCalc. Kernstück beider Sonnen-Features. |
+| [src/sun/TimeSelection.ts](src/sun/TimeSelection.ts) | 125 | Gemeinsamer Zeitpunkt (Tag + Tageszeit) von `SunPath` und `WorldTime`; besitzt Zeitleiste und Datumsauswahl. Kennt **keinen** Ort. |
+| [src/sun/SunPath.ts](src/sun/SunPath.ts) | 159 | Feature-Koordinator "Sonnenverlauf": Peilkreis + Solardaten. Braucht einen Home-Marker. |
+| [src/sun/WorldTime.ts](src/sun/WorldTime.ts) | 78 | Feature-Koordinator "Weltzeit": Erdschatten + Ortszeit-Gitter. Braucht **keinen** Bezugspunkt. |
 | [src/sun/SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts) | 104 | Gitter der wahren Ortszeit (15°-Meridiane ab dem Sonnenmeridian). Canvas-Overlay, **kein** `MapGrid`. |
 | [src/sun/SunCompass.ts](src/sun/SunCompass.ts) | 272 | Peilkreis mit Tagesbogen und Jahresband (Canvas). |
-| [src/sun/SunTimeline.ts](src/sun/SunTimeline.ts) | 158 | Zeitleiste über der Karte mit Schieberegler. |
+| [src/sun/SunTimeline.ts](src/sun/SunTimeline.ts) | 176 | Zeitleiste über der Karte mit Schieberegler. Stundenskala (`setBounds`) und Helligkeit (`setDay`) werden getrennt gesetzt. |
 | [src/sun/SunDataPanel.ts](src/sun/SunDataPanel.ts) | 68 | Tabelle "Solardaten". |
-| [src/sun/SunDateControl.ts](src/sun/SunDateControl.ts) | 49 | Datumsauswahl + "Jetzt"-Knopf. |
+| [src/sun/SunDateControl.ts](src/sun/SunDateControl.ts) | 50 | Menüblock "Zeitpunkt": Datumsauswahl + "Jetzt"-Knopf. |
 | [src/sun/EarthShadow.ts](src/sun/EarthShadow.ts) | 129 | Terminator/Erdschatten (Canvas, spaltenweise). |
 | [src/ui/GridSelector.ts](src/ui/GridSelector.ts) | 72 | Menüblock "Raster". |
 | [src/ui/MapLayerSelector.ts](src/ui/MapLayerSelector.ts) | 48 | Menüblock "Karten". |
@@ -97,26 +100,48 @@ favicon`, sofern der Commit `src`, `public` oder eine Build-Konfiguration berüh
 ## Datenfluss
 
 ```
-new App()                                              App.ts:46
- ├─ L.Map('map', {zoomControl:false}).setView(...)      App.ts:47   Zentrum AT, Zoom 8
- ├─ trackUserInteraction()                              App.ts:154  setzt #userIsMoving
+new App()                                              App.ts:51
+ ├─ L.Map('map', {zoomControl:false}).setView(...)      App.ts:51   Zentrum AT, Zoom 8
+ ├─ trackUserInteraction()                              App.ts:192  setzt #userIsMoving
  ├─ MapLayerSelector(#mapTypeList)                      MapLayerSelector.ts:18
  │     └─ select(MAP_LAYERS[0])                         → OSM sofort aktiv
  ├─ GridSelector(#stepList)                             GridSelector.ts:45   (kein Default!)
- ├─ DistanceCircleOverlay(CIRCLE_STEPS)                 App.ts:55
- ├─ createMarkers()                                     App.ts:65
+ ├─ DistanceCircleOverlay(CIRCLE_STEPS)                 App.ts:59
+ ├─ createMarkers()                                     App.ts:75
  │     ├─ MarkerController → MarkerStore(localStorage)  MarkerStore.ts:26
  │     ├─ [Query enthält setMarkers] loadFromQueryString + history.replaceState
- │     │                                                App.ts:73-76
- │     ├─ QrCodeExport(#markerList)                     App.ts:78
- │     └─ on markerselected / homechanged / clearall    App.ts:81-90
- ├─ createSunPath()                                     App.ts:99
- │     └─ on activechanged → circles.setEnabled(!aktiv) App.ts:107
- ├─ createGeolocation()                                 App.ts:112
+ │     │                                                App.ts:83-86
+ │     ├─ QrCodeExport(#markerList)                     App.ts:88
+ │     └─ on markerselected / homechanged / clearall    App.ts:91-100
+ ├─ TimeSelection(#sunTimeline, #sunPathControl)        App.ts:61   setToNow(), beides hidden
+ ├─ createSunPath()                                     App.ts:109
+ │     ├─ on activechanged → circles.setEnabled(!aktiv) App.ts:115
+ │     └─ on daychanged    → time.setDay(tag|null)      App.ts:118
+ ├─ createWorldTime()                                   App.ts:123
+ ├─ connectTimeSelection()                              App.ts:131
+ │     ├─ time.daychanged      → sunPath.setDate                    App.ts:132
+ │     ├─ time.momentchanged   → sunPath.setMoment + worldTime.setTime
+ │     ├─ time.visibilitychanged → map.invalidateSize()             App.ts:138
+ │     ├─ sunPath/worldTime.activechanged → time.setVisible(a || b) App.ts:141-143
+ │     └─ time.refresh()  → Startzeitpunkt an beide Features        App.ts:146
+ ├─ createGeolocation()                                 App.ts:150
  │     ├─ GeolocationTracker.positionchanged → markers.setLocation
  │     └─ DeviceOrientationTracker.headingchanged → markers.setLocationHeading
- ├─ createSearch()   → found → setView + addMarker      App.ts:135
- └─ createOptionsMenu() → toggled → invalidateSize      App.ts:144
+ ├─ createSearch()   → found → setView + addMarker      App.ts:173
+ └─ createOptionsMenu() → toggled → invalidateSize      App.ts:182
+```
+
+Laufender Betrieb, Zeitpfad:
+
+```
+Regler ziehen / Datum wählen / ⟳            SunTimeline.ts:111 bzw. SunDateControl.ts:33
+ └─ TimeSelection.update(dayChanged)        TimeSelection.ts:116
+      ├─ [dayChanged] dateControl.setDate + timeline.setBounds
+      ├─ timeline.setFraction
+      ├─ [dayChanged] emit 'daychanged'     → SunPath.setDate → getDayInfo (1441 Samples)
+      │                                        → emit 'daychanged'(day) → timeline.setDay
+      └─ emit 'momentchanged'               → SunPath.setMoment  (Sonnenstand im Peilkreis)
+                                            → WorldTime.setTime  (Erdschatten + Ortszeit)
 ```
 
 Laufender Betrieb, Markerpfad:
@@ -131,26 +156,34 @@ Rechtsklick / contextmenu                MarkerController.ts:163
                 ├─ MarkerLayer.render()  MarkerLayer.ts:33
                 └─ MarkerListView.render()
 "H" in der Tabelle → setHome() → emit 'homechanged'   MarkerController.ts:133
- ├─ DistanceCircleOverlay.setCenter(pos, farbe)       App.ts:83
- └─ SunPath.setHome(pos)                              App.ts:85
+ ├─ DistanceCircleOverlay.setCenter(pos, farbe)       App.ts:93
+ └─ SunPath.setHome(pos)                              App.ts:95
 ```
 
 ### Invarianten der Reihenfolge
 
-1. `#circles` muss vor `createMarkers()` existieren ([App.ts:55-56](src/App.ts#L55-L56)), weil der
+1. `#circles` muss vor `createMarkers()` existieren ([App.ts:59-60](src/App.ts#L59-L60)), weil der
    `homechanged`-Handler es referenziert.
-2. `#sunPath` und `#geolocation` werden **nach** `createMarkers()` gesetzt
-   ([App.ts:57-58](src/App.ts#L57-L58)). Das ist nur zulässig, weil `MarkerController` im Konstruktor
+2. `#sunPath`, `#worldTime` und `#geolocation` werden **nach** `createMarkers()` gesetzt
+   ([App.ts:65-68](src/App.ts#L65-L68)). Das ist nur zulässig, weil `MarkerController` im Konstruktor
    weder `homechanged` noch `clearall` feuert. Wer das ändert, bekommt einen Zugriff auf ein noch
    nicht initialisiertes `readonly`-Feld.
-3. `loadFromQueryString()` läuft **nach** dem Registrieren des `changed`-Listeners
+3. `#time` muss **vor** `createSunPath()` existieren ([App.ts:61](src/App.ts#L61)), weil der
+   `daychanged`-Handler des Sonnenverlaufs darauf zugreift; `connectTimeSelection()` läuft
+   umgekehrt **nach** beiden Features ([App.ts:67](src/App.ts#L67)).
+4. `TimeSelection.refresh()` ist der **letzte** Schritt der Verdrahtung
+   ([App.ts:146](src/App.ts#L146)). Beide Features starten mit `new Date()` als Platzhalter; erst
+   `refresh()` schiebt ihnen den tatsächlich gewählten Zeitpunkt zu.
+5. `loadFromQueryString()` läuft **nach** dem Registrieren des `changed`-Listeners
    ([MarkerController.ts:53](src/markers/MarkerController.ts#L53)), sonst bliebe die importierte
    Menge unsichtbar.
-4. `MarkerStore` ist alleiniger Besitzer der Daten; `MarkerLayer` und `MarkerListView` sind
+6. `MarkerStore` ist alleiniger Besitzer der Daten; `MarkerLayer` und `MarkerListView` sind
    zustandslos und rendern nur den übergebenen `MarkerLayerState`. Nicht persistiert und daher nur im
    Controller: GPS-Position und Home-Marker ([MarkerController.ts:40-41](src/markers/MarkerController.ts#L40-L41)).
-5. `SunPath.updateDay()` muss vor `updateMoment()` laufen – ersteres setzt Tagesbogen und
-   Jahresband, letzteres nur Sonnenstand und Schatten ([SunPath.ts:171](src/sun/SunPath.ts#L171)).
+7. `TimeSelection.update()` feuert `daychanged` **vor** `momentchanged`
+   ([TimeSelection.ts:122-123](src/sun/TimeSelection.ts#L122-L123)). Nur dadurch stehen Tagesbogen
+   und Jahresband des Peilkreises fest, bevor der Sonnenstand darauf gesetzt wird. Dieselbe Ordnung
+   stellt `SunPath.updateDay()` intern her ([SunPath.ts:142](src/sun/SunPath.ts#L142)).
 
 ---
 
@@ -181,7 +214,36 @@ nirgends verwendet, es wird nie abgemeldet.
   inklusive Marker. Die Reihenfolge ist inhaltlich gewählt: das Ortszeit-Gitter bleibt auch in der
   Nachthälfte kräftig rot, der Peilkreis bleibt oben.
 
-### 3. Sonnengeometrie ([SolarAstronomy.ts](src/sun/SolarAstronomy.ts))
+### 3. Zwei Zeit-Features, eine Zeitauswahl
+
+`SunPath` und `WorldTime` sind unabhängig schaltbar, teilen sich aber den gewählten Zeitpunkt.
+Dieser Zeitpunkt gehört keinem der beiden, sondern `TimeSelection`; dort liegen Zeitleiste und
+Datumsauswahl.
+
+| | SunPath | WorldTime |
+| --- | --- | --- |
+| Knopf | `#toggleSunPath` (`.sun-button`, Sonne) | `#toggleWorldTime` (`.world-time-button`, beschattete Erdkugel) |
+| Braucht Home-Marker | ja, sonst `disabled` | nein, immer schaltbar |
+| Zeigt | Peilkreis (403), `#sunDataPanel` | Erdschatten (401), Ortszeit-Gitter (402) |
+| Nebenwirkung | blendet die Entfernungskreise aus | keine |
+
+- Sichtbar ist die Zeitauswahl, sobald **eines** der Features aktiv ist
+  ([App.ts:141-143](src/App.ts#L141-L143)). `setVisible` prüft auf echten Wechsel und feuert nur dann
+  `visibilitychanged`, worauf `App` genau einmal `map.invalidateSize()` ruft – die Zeitleiste nimmt
+  der Karte Höhe weg.
+- Die Zeitleiste kennt **keinen** Ort. Ihre Stundenskala kommt aus `setBounds` (nur das Datum), die
+  Farben aus `setDay`. Nur `SunPath` kennt den Home-Marker und liefert die Farben deshalb über sein
+  Event `daychanged` ([App.ts:118](src/App.ts#L118)) – und zwar **auch im ausgeschalteten Zustand**
+  ([SunPath.ts:141-142](src/sun/SunPath.ts#L141-L142)), damit die Zeitleiste bei nur aktivierter
+  Weltzeit ebenfalls Tag, Dämmerung und Nacht zeigt. Maßgeblich ist allein der Home-Marker: ohne ihn
+  sendet `SunPath` `null` ([SunPath.ts:135](src/sun/SunPath.ts#L135)) und der Balken wird neutral
+  grau. Preis dafür ist ein `getDayInfo`-Lauf (1441 Samples) je Tageswechsel, sobald ein
+  Home-Marker existiert.
+- `WorldTime` merkt sich den Zeitpunkt auch im ausgeschalteten Zustand
+  ([WorldTime.ts:59-63](src/sun/WorldTime.ts#L59-L63)), damit das Einschalten sofort den aktuell
+  gewählten Moment zeigt statt den Stand der letzten Aktivierung.
+
+### 4. Sonnengeometrie ([SolarAstronomy.ts](src/sun/SolarAstronomy.ts))
 
 Alle Ereigniszeiten werden **durch Abtasten der Sonnenhöhe** bestimmt, nicht über
 `SunCalc.getTimes()`. Grund: `getTimes()` liefert bei Polartag/Polarnacht ungültige Daten, weil der
@@ -189,18 +251,18 @@ Stundenwinkel dort undefiniert ist ([Doc-Kommentar Zeile 8-11](src/sun/SolarAstr
 
 | Schritt | Funktion | Details |
 | --- | --- | --- |
-| Abtasten | `sampleDay` [:126](src/sun/SolarAstronomy.ts#L126) | lokale Mitternacht → lokale Mitternacht, Schritt 1 min ⇒ **1441 Samples** (bei Zeitumstellung 1381 bzw. 1501). |
-| Auf-/Untergang | `findEvents` [:147](src/sun/SolarAstronomy.ts#L147) | lineare Interpolation der Schwellenkreuzung zwischen zwei Samples; liefert zusätzlich `alwaysAbove`/`alwaysBelow`. |
-| Höchststand | `findCulmination` [:187](src/sun/SolarAstronomy.ts#L187) | Parabelscheitel durch Maximum und seine zwei Nachbarn. |
-| Tagesbogen | `getDayArc` [:293](src/sun/SolarAstronomy.ts#L293) | abgetastet über einen **Sonnentag** (Sonnenmittag ±12 h), nicht über den lokalen Tag – sonst zerschneidet die lokale Mitternacht den Tagbogen entfernter Orte. |
-| Azimut | `getSample` [:114](src/sun/SolarAstronomy.ts#L114) | SunCalc misst ab Süden, hier wird auf "im Uhrzeigersinn ab Nord" umgerechnet. |
-| Sonnenmeridian | `getSubsolarLongitude` [:364](src/sun/SolarAstronomy.ts#L364) | Länge mit Stundenwinkel 0, also `rektaszension − sternzeit`, normiert auf [−180°, 180°). Die Zeitgleichung steckt bereits in der Rektaszension, das Ergebnis folgt daher der **wahren** Sonne. |
+| Abtasten | `sampleDay` [:130](src/sun/SolarAstronomy.ts#L130) | lokale Mitternacht → lokale Mitternacht, Schritt 1 min ⇒ **1441 Samples** (bei Zeitumstellung 1381 bzw. 1501). |
+| Auf-/Untergang | `findEvents` [:151](src/sun/SolarAstronomy.ts#L151) | lineare Interpolation der Schwellenkreuzung zwischen zwei Samples; liefert zusätzlich `alwaysAbove`/`alwaysBelow`. |
+| Höchststand | `findCulmination` [:191](src/sun/SolarAstronomy.ts#L191) | Parabelscheitel durch Maximum und seine zwei Nachbarn. |
+| Tagesbogen | `getDayArc` [:297](src/sun/SolarAstronomy.ts#L297) | abgetastet über einen **Sonnentag** (Sonnenmittag ±12 h), nicht über den lokalen Tag – sonst zerschneidet die lokale Mitternacht den Tagbogen entfernter Orte. |
+| Azimut | `getSample` [:118](src/sun/SolarAstronomy.ts#L118) | SunCalc misst ab Süden, hier wird auf "im Uhrzeigersinn ab Nord" umgerechnet. |
+| Sonnenmeridian | `getSubsolarLongitude` [:368](src/sun/SolarAstronomy.ts#L368) | Länge mit Stundenwinkel 0, also `rektaszension − sternzeit`, normiert auf [−180°, 180°). Die Zeitgleichung steckt bereits in der Rektaszension, das Ergebnis folgt daher der **wahren** Sonne. |
 
-`getEquatorialPosition` [:337](src/sun/SolarAstronomy.ts#L337) rechnet dieselben Formeln wie SunCalc
+`getEquatorialPosition` [:341](src/sun/SolarAstronomy.ts#L341) rechnet dieselben Formeln wie SunCalc
 nach, aber im äquatorialen System; `days` ist die SunCalc-Tageszählung ab J2000
-(`2440588 − 2451545 = −10957`, [Zeile 338](src/sun/SolarAstronomy.ts#L338)).
+(`2440588 − 2451545 = −10957`, [Zeile 342](src/sun/SolarAstronomy.ts#L342)).
 
-### 4. Erdschatten analytisch pro Spalte ([EarthShadow.ts](src/sun/EarthShadow.ts))
+### 5. Erdschatten analytisch pro Spalte ([EarthShadow.ts](src/sun/EarthShadow.ts))
 
 Entlang eines Meridians ist die Länge konstant, damit gilt
 
@@ -209,9 +271,9 @@ sin(h) = sin(φ)·sin(δ) + cos(φ)·cos(δ)·cos(H) = K·sin(φ + ψ)
 mit K = hypot(a, b), ψ = atan2(b, a), a = sin(δ), b = cos(δ)·cos(H)
 ```
 
-`getDarkLatitudeRanges` [:366](src/sun/SolarAstronomy.ts#L366) löst das nach φ auf und liefert die
+`getDarkLatitudeRanges` [:387](src/sun/SolarAstronomy.ts#L387) löst das nach φ auf und liefert die
 dunklen Breitenbereiche – inklusive der Sonderfälle "ganzer Meridian hell/dunkel"
-(`ratio ≥ 1` bzw. `≤ −1`, [Zeile 372-373](src/sun/SolarAstronomy.ts#L372-L373)).
+(`ratio ≥ 1` bzw. `≤ −1`, [Zeile 393-394](src/sun/SolarAstronomy.ts#L393-L394)).
 
 Gezeichnet wird spaltenweise mit `COLUMN_WIDTH = 2` px und **zwei** Schwellen (−0.833° und −6°).
 Jede Schwelle ist **ein** Pfad, damit überlappende Rechtecke derselben Stufe nicht doppelt
@@ -222,7 +284,7 @@ Die Umrechnung x↔Länge und Breite↔y erfolgt über eine **lineare** Ersatzpr
 Referenzpunkten ([getProjection :94](src/sun/EarthShadow.ts#L94)), weil in Web-Mercator die Länge
 linear in x und die Mercator-Breite linear in y ist. Das spart einen Projektionsaufruf pro Spalte.
 
-### 5. Peilkreis ([SunCompass.ts](src/sun/SunCompass.ts))
+### 6. Peilkreis ([SunCompass.ts](src/sun/SunCompass.ts))
 
 Orthografische Abbildung des Himmels: Höhe *h* wird im Abstand `radius · cos(h)` vom Mittelpunkt
 gezeichnet ([getPoint :108](src/sun/SunCompass.ts#L108)) – Horizont auf dem Kreis, Zenit im
@@ -235,11 +297,11 @@ Damit füllt sich exakt die Differenzfläche, ohne dass entschieden werden muss,
 läuft. `appendRegion` [:134](src/sun/SunCompass.ts#L134) schließt die Region entlang des Horizonts;
 die Drehrichtung (`turning`) bestimmt, in welche Richtung der Kreisbogen läuft.
 
-### 6. Entfernungskreise: nur sichtbare Radien ([DistanceCircleOverlay.ts](src/map/DistanceCircleOverlay.ts))
+### 7. Entfernungskreise: nur sichtbare Radien ([DistanceCircleOverlay.ts](src/map/DistanceCircleOverlay.ts))
 
 Der Abstand ergibt sich aus dem ersten `CIRCLE_STEPS`-Eintrag mit `minZoom <= zoom`
 ([Zeile 89](src/map/DistanceCircleOverlay.ts#L89)); die Liste in
-[App.ts:21-31](src/App.ts#L21-L31) ist deshalb **von fein nach grob** sortiert – eine Umsortierung
+[App.ts:23-33](src/App.ts#L23-L33) ist deshalb **von fein nach grob** sortiert – eine Umsortierung
 ändert das Verhalten stillschweigend.
 
 `getVisibleRadiusRange` [:117](src/map/DistanceCircleOverlay.ts#L117): liegt das Zentrum im
@@ -251,7 +313,7 @@ Beschriftungen ([DistanceCircleLabels.ts:51-59](src/map/DistanceCircleLabels.ts#
 dem Meridian des Zentrums sowie an den Schnittpunkten mit dem **oberen** Kartenrand, berechnet über
 den Stundenwinkel; ist `|cos H| > 1`, schneidet der Kreis den Rand nicht und die Labels entfallen.
 
-### 7. Gitter
+### 8. Gitter
 
 `MapGrid` besitzt eine `L.layerGroup` per Komposition statt sie zu erweitern
 ([Doc-Kommentar :12-20](src/map/grids/MapGrid.ts#L12-L20)) und baut bei `viewreset move`
@@ -266,9 +328,9 @@ den Stundenwinkel; ist `|cos H| > 1`, schneidet der Kreis den Rand nicht und die
   weil Mercator-Strecken um 1/cos(φ) gedehnt sind. Der Abstand stimmt daher **exakt nur auf der
   Breite der Kartenmitte**.
 - `SolarTimeGrid`: siehe unten. Trotz des Namens **kein** `MapGrid`, sondern ein Canvas-Overlay, und
-  nicht über das Menü "Raster" erreichbar, sondern Teil des Sonnenverlaufs.
+  nicht über das Menü "Raster" erreichbar, sondern Teil der Weltzeit.
 
-### 8. Gitter der wahren Ortszeit ([SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts))
+### 9. Gitter der wahren Ortszeit ([SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts))
 
 Fachlich ein Längengitter mit 15° Abstand, verankert am **Sonnenmeridian**
 (`getSubsolarLongitude`). Dort ist der Stundenwinkel 0, also wahre Ortszeit 12 h; jede weitere
@@ -297,8 +359,8 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
   ([drawLabels :92](src/sun/SolarTimeGrid.ts#L92)) und ersetzt den `text-shadow` der übrigen
   Gitterlabels. Alle Konturen werden vor allen Füllungen gezeichnet, damit die Kontur eines Labels
   nicht in das Nachbarlabel hineinragt.
-- Das Gitter hängt am **gewählten Moment**, nicht nur an der Kartenansicht: `SunPath.updateMoment()`
-  ruft `setTime()` ([SunPath.ts:187](src/sun/SunPath.ts#L187)). Beim Ziehen des Zeitreglers wandert
+- Das Gitter hängt am **gewählten Moment**, nicht nur an der Kartenansicht: `WorldTime.setTime()`
+  reicht ihn durch ([WorldTime.ts:63](src/sun/WorldTime.ts#L63)). Beim Ziehen des Zeitreglers wandert
   das Gitter also nach Westen.
 
 ---
@@ -309,9 +371,9 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 
 | Konstante | Zeile | Bedeutung / Herkunft |
 | --- | --- | --- |
-| `INITIAL_VIEW` | [15](src/App.ts#L15) | `[47.5, 13.5]`, Zoom 8 – Mitte Österreichs, willkürlich gewählt. |
-| `LOCATION_ZOOM` | [18](src/App.ts#L18) | 14; Zoom nach dem ersten GPS-Fix. |
-| `CIRCLE_STEPS` | [21-31](src/App.ts#L21-L31) | 100 m (ab Z16) … 1000 km (ab Z0). Reihenfolge fein→grob ist bindend. |
+| `INITIAL_VIEW` | [17](src/App.ts#L17) | `[47.5, 13.5]`, Zoom 8 – Mitte Österreichs, willkürlich gewählt. |
+| `LOCATION_ZOOM` | [20](src/App.ts#L20) | 14; Zoom nach dem ersten GPS-Fix. |
+| `CIRCLE_STEPS` | [23-33](src/App.ts#L23-L33) | 100 m (ab Z16) … 1000 km (ab Z0). Reihenfolge fein→grob ist bindend. |
 
 ### Marker
 
@@ -337,7 +399,7 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 | `TWILIGHT_ALTITUDE` | [SolarAstronomy.ts:20](src/sun/SolarAstronomy.ts#L20) | −6° = bürgerliche Dämmerung. |
 | `OBLIQUITY` | [SolarAstronomy.ts:22](src/sun/SolarAstronomy.ts#L22) | 23.4397°, Wert aus SunCalc. |
 | `MERCATOR_LIMIT` | [SolarAstronomy.ts:24](src/sun/SolarAstronomy.ts#L24) | 85.0511° (Leaflet selbst rechnet mit 85.0511287798 – für die Schattenkante irrelevant). |
-| `HOME_TOLERANCE` | [SunPath.ts:25](src/sun/SunPath.ts#L25) | 0.0005° ≈ **56 m** in der Breite; darunter gilt der Home-Punkt als unverändert. |
+| `HOME_TOLERANCE` | [SunPath.ts:24](src/sun/SunPath.ts#L24) | 0.0005° ≈ **56 m** in der Breite; darunter gilt der Home-Punkt als unverändert. |
 | `PADDING` | [SunCompass.ts:7](src/sun/SunCompass.ts#L7) | 30 px Abstand des Peilkreises zum Kartenrand. |
 | `HOUR_SPACING` | [SolarTimeGrid.ts:6](src/sun/SolarTimeGrid.ts#L6) | 15° = eine Stunde Erddrehung. Andere Werte ergeben keine ganzen Stunden und damit falsche Beschriftungen. |
 | `MAX_LINES` | [SolarTimeGrid.ts:9](src/sun/SolarTimeGrid.ts#L9) | 100 Meridiane, Notbremse bei Ansichten mit vielen Weltkopien. |
@@ -345,8 +407,9 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 | `LABEL_TOP` | [SolarTimeGrid.ts:20](src/sun/SolarTimeGrid.ts#L20) | 6 px unter dem oberen Rand der **Ansicht** – dieser feste Pixelwert ist der Grund für das Canvas. |
 | `COLUMN_WIDTH` | [EarthShadow.ts:10](src/sun/EarthShadow.ts#L10) | 2 px pro Scan-Spalte. |
 | `SHADOW_COLOR` | [EarthShadow.ts:12](src/sun/EarthShadow.ts#L12) | `rgba(0,6,30,0.11)`; zwei Lagen ergeben 0.208 für die Nacht. |
-| `HOUR_LABEL_WIDTH` | [SunTimeline.ts:16](src/sun/SunTimeline.ts#L16) | 55 px – bestimmt, wie stark die Stundenbeschriftung ausgedünnt wird. |
-| `CLASS_COLORS` | [SunTimeline.ts:11](src/sun/SunTimeline.ts#L11) | Nacht `#2f4468`, Dämmerung `#b9d9f0`, Tag `#ffe89e`. |
+| `HOUR_LABEL_WIDTH` | [SunTimeline.ts:22](src/sun/SunTimeline.ts#L22) | 55 px – bestimmt, wie stark die Stundenbeschriftung ausgedünnt wird. |
+| `CLASS_COLORS` | [SunTimeline.ts:14](src/sun/SunTimeline.ts#L14) | Nacht `#2f4468`, Dämmerung `#b9d9f0`, Tag `#ffe89e`. |
+| `NO_DATA_COLOR` | [SunTimeline.ts:19](src/sun/SunTimeline.ts#L19) | `#7d8794` – Balkenfarbe ohne Solardaten, also solange kein Home-Marker gesetzt ist. |
 | `UPDATE_INTERVAL` | [GeolocationTracker.ts:14](src/geolocation/GeolocationTracker.ts#L14) | 500 ms Mindestabstand zwischen zwei Positionen. |
 
 ### Menüeinträge
@@ -388,7 +451,7 @@ Beispiel: ?setMarkers=1_red_47820532_10892944$2_green_47720849_11771851
   Farben müssen `#COLOR_PATTERN` erfüllen.
 - Der Import **ersetzt** den lokalen Bestand vollständig und schreibt ihn in `localStorage`
   ([MarkerStore.ts:81-83](src/markers/MarkerStore.ts#L81-L83)). Danach entfernt
-  [App.ts:74-75](src/App.ts#L74-L75) den Querystring per `history.replaceState`, damit ein Reload
+  [App.ts:84-85](src/App.ts#L84-L85) den Querystring per `history.replaceState`, damit ein Reload
   den geteilten Satz nicht erneut aufzwingt.
 - Der QR-Code enthält `protocol//host + pathname + ?setMarkers=…`
   ([QrCodeExport.ts:42-43](src/markers/QrCodeExport.ts#L42-L43)) – ein vorhandener Querystring der
@@ -406,15 +469,15 @@ Beispiel: ?setMarkers=1_red_47820532_10892944$2_green_47720849_11771851
 | Fehlerhafter Eintrag im Querystring | Eintrag wird still übersprungen | [MarkerUrlCodec.ts:45-50](src/markers/MarkerUrlCodec.ts#L45-L50) |
 | Nominatim: HTTP-Fehler / kein Treffer / Netzfehler | Fehlertext wird **in das Suchfeld selbst** geschrieben | [AddressSearch.ts:52-54](src/search/AddressSearch.ts#L52-L54) |
 | Geolocation nicht unterstützt | `failed` + `start()` liefert `false`, Button bleibt inaktiv | [GeolocationTracker.ts:45-48](src/geolocation/GeolocationTracker.ts#L45-L48) |
-| Geolocation-Berechtigung verweigert / Timeout | nur `console.warn`; **Tracking bleibt formal aktiv**, Button bleibt eingefärbt | [App.ts:125](src/App.ts#L125) |
+| Geolocation-Berechtigung verweigert / Timeout | nur `console.warn`; **Tracking bleibt formal aktiv**, Button bleibt eingefärbt | [App.ts:162](src/App.ts#L162) |
 | Zwischenablage verweigert | `alert()` mit Fehlermeldung | [QrCodeExport.ts:59-61](src/markers/QrCodeExport.ts#L59-L61) |
 | Markersatz zu groß für einen QR-Code | **ungefangen** – QRious wirft in `show()`, das Canvas wird nie angehängt, `#canvas` bleibt `null` (nächster Klick versucht es erneut). Grenze rechnerisch ~2953 Byte, bei ~28 Byte je Marker also grob 100 Marker | [QrCodeExport.ts:50](src/markers/QrCodeExport.ts#L50) |
-| Kein Home-Marker | Sonnen-Button ist `disabled`, Titel "Kein Marker als Home definiert" | [SunPath.ts:140-143](src/sun/SunPath.ts#L140-L143) |
+| Kein Home-Marker | Sonnen-Button ist `disabled`, Titel "Kein Marker als Home definiert". Der Weltzeit-Button bleibt bedienbar, die Zeitleiste bleibt ungefärbt. | [SunPath.ts:112-115](src/sun/SunPath.ts#L112-L115) |
 | Polartag/Polarnacht/Dauerdämmerung | Zeiten sind `null` → "–", zusätzlich ein Hinweistext | [SunDataPanel.ts:62-66](src/sun/SunDataPanel.ts#L62-L66) |
 | Kartencontainer hat Größe 0 | Canvas-Redraw bricht ab | [MapCanvasOverlay.ts:65](src/map/MapCanvasOverlay.ts#L65) |
 
 Es gibt **kein** Logging-Framework; die einzige Diagnoseausgabe ist das `console.warn` in
-[App.ts:125](src/App.ts#L125).
+[App.ts:162](src/App.ts#L162).
 
 ---
 
@@ -436,20 +499,20 @@ vollständig implementiert, über die Oberfläche aber nicht erreichbar.
 Gitterwechsel gerufen. Nötig wäre ein Choice-Eintrag mit `kind: null` plus eine Verzweigung in
 `select`.
 
-**Andere Kreisabstände** — `CIRCLE_STEPS` in [App.ts:21](src/App.ts#L21). Die Liste **muss** von
+**Andere Kreisabstände** — `CIRCLE_STEPS` in [App.ts:23](src/App.ts#L23). Die Liste **muss** von
 fein nach grob sortiert bleiben, weil `find()` den ersten passenden Eintrag nimmt
 ([DistanceCircleOverlay.ts:89](src/map/DistanceCircleOverlay.ts#L89)). Der Hervorhebungsfaktor 5
 steckt separat in `EMPHASIS_INTERVAL`.
 
 **Weitere Solardaten-Zeile** — `rows` in [SunDataPanel.ts:45-53](src/sun/SunDataPanel.ts#L45-L53).
 Wenn der Wert nicht schon in `SolarDayInfo` steht, muss er zusätzlich in `getDayInfo`
-[:214](src/sun/SolarAstronomy.ts#L214) berechnet und in das Interface
-[:52-71](src/sun/SolarAstronomy.ts#L52-L71) aufgenommen werden.
+[:218](src/sun/SolarAstronomy.ts#L218) berechnet und in das Interface
+[:56-75](src/sun/SolarAstronomy.ts#L56-L75) aufgenommen werden.
 
 **Nautische/astronomische Dämmerung** — `TWILIGHT_ALTITUDE`
 ([SolarAstronomy.ts:20](src/sun/SolarAstronomy.ts#L20)) ändern reicht **nicht**: der Wert wird an
 drei Stellen als *die eine* Dämmerungsschwelle benutzt (Solardaten, Zeitleistenfarben
-[SunTimeline.ts:139](src/sun/SunTimeline.ts#L139), Erdschatten-Stufen
+[SunTimeline.ts:157](src/sun/SunTimeline.ts#L157), Erdschatten-Stufen
 [EarthShadow.ts:56-59](src/sun/EarthShadow.ts#L56-L59)). Für mehrere Stufen muss aus der Konstanten
 eine Liste werden; `EarthShadow` verträgt beliebig viele Schwellen bereits, da es über
 `thresholds` iteriert.
@@ -477,6 +540,13 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
 `requireElement` holen. Das Menü ist ein Flex-Container, dessen direkte Kinder gerahmt werden
 ([index.css:42](src/styles/index.css#L42)).
 
+**Weiteres zeitabhängiges Feature** — nach dem Muster von `WorldTime`
+([WorldTime.ts](src/sun/WorldTime.ts), 78 Zeilen) bauen: eigener Knopf in `.controlButtons`, eine
+`setTime(Date)`-Methode und ein `activechanged`-Event. In `App.connectTimeSelection`
+([App.ts:131](src/App.ts#L131)) an `momentchanged` hängen und in `updateControls` mit `|| …`
+aufnehmen, damit die Zeitauswahl auch für dieses Feature erscheint. Den Zeitpunkt **nicht** selbst
+aus `new Date()` holen – er kommt ausschließlich aus `TimeSelection`.
+
 ---
 
 ## Fallstricke
@@ -490,7 +560,7 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
    ein natives `contextmenu`, mobiles Safari bekommt es über Leaflets eigenen `TapHold`-Handler
    simuliert (ebenfalls 600 ms). `LONG_PRESS_MS` ist damit wirkungslos.
 
-2. **Doppelklick tut zwei Dinge.** [App.ts:94](src/App.ts#L94) setzt bei `dblclick` den GPS-Pfeil
+2. **Doppelklick tut zwei Dinge.** [App.ts:104](src/App.ts#L104) setzt bei `dblclick` den GPS-Pfeil
    auf die geklickte Position; Leaflets `doubleClickZoom` ist gleichzeitig aktiv, die Karte zoomt
    also mit. Das ist ein bewusster Testpfad ohne echtes GPS, überrascht aber.
 
@@ -503,7 +573,7 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
 4. **QR-Code wird nicht nachgeführt.** `show()` läuft nur aus `toggle()`
    ([QrCodeExport.ts:27](src/markers/QrCodeExport.ts#L27)). Wer bei sichtbarem Code einen Marker
    ergänzt, sieht weiter den alten Link. Nur `clearall` blendet ihn aus
-   ([App.ts:89](src/App.ts#L89)).
+   ([App.ts:99](src/App.ts#L99)).
 
 5. **Import mit ID 0 kollidiert mit dem GPS-Marker.** `decode` akzeptiert jede endliche ID
    ([MarkerUrlCodec.ts:49](src/markers/MarkerUrlCodec.ts#L49)), auch 0 oder negative Werte und
@@ -520,20 +590,22 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
    Storage-Pfad nichts – praktisch unkritisch (Same-Origin), aber die Prüfung gehört bei einer
    Erweiterung in `read()`.
 
-7. **`activechanged` feuert bei jedem `updateVisibility()`,** auch ohne Zustandswechsel
-   ([SunPath.ts:150](src/sun/SunPath.ts#L150)). `App` löst daraus jedes Mal ein Neuzeichnen der
-   Entfernungskreise aus ([App.ts:107](src/App.ts#L107)).
+7. **`SunPath.activechanged` feuert bei jedem `updateVisibility()`,** auch ohne Zustandswechsel
+   ([SunPath.ts:121](src/sun/SunPath.ts#L121)). `App` löst daraus jedes Mal ein Neuzeichnen der
+   Entfernungskreise aus ([App.ts:115](src/App.ts#L115)). `WorldTime` verhält sich anders: dort
+   bricht `setActive` bei gleichem Wert vorher ab ([WorldTime.ts:49](src/sun/WorldTime.ts#L49)).
 
 8. **Sonnenverlauf blendet die Entfernungskreise aus** – bewusst, weil sie den Peilkreis überdecken
-   würden ([App.ts:106-107](src/App.ts#L106-L107)). Das Zentrum bleibt dabei erhalten
-   (`setEnabled`, nicht `clear`), Kreise kommen beim Abschalten unverändert zurück.
+   würden ([App.ts:114-115](src/App.ts#L114-L115)). Das Zentrum bleibt dabei erhalten
+   (`setEnabled`, nicht `clear`), Kreise kommen beim Abschalten unverändert zurück. Die **Weltzeit**
+   tut das nicht – bei ihr bleiben die Kreise sichtbar.
 
 9. **Alle Uhrzeiten sind in der Zeitzone des Nutzers,** auch wenn der Home-Marker auf einem anderen
    Kontinent liegt ([SunDataPanel.ts:6-7](src/sun/SunDataPanel.ts#L6-L7)). Die Zeitleiste spannt
    lokale Mitternacht bis lokale Mitternacht, Tage mit Zeitumstellung sind 23 bzw. 25 h lang und
-   werden korrekt auf 0..1 abgebildet ([SunTimeline.ts:103-106](src/sun/SunTimeline.ts#L103-L106));
+   werden korrekt auf 0..1 abgebildet ([SunTimeline.ts:120-122](src/sun/SunTimeline.ts#L120-L122));
    die übersprungene Stunde wird beim Zeichnen der Skala abgefangen
-   ([Zeile 122](src/sun/SunTimeline.ts#L122)).
+   ([Zeile 136](src/sun/SunTimeline.ts#L136)).
 
 10. **`web app manifest` verweist ins Leere.** In
     [public/favicon/site.webmanifest](public/favicon/site.webmanifest) lauten die Icon-Pfade
@@ -549,8 +621,8 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
     nirgends gerufen; auf iOS 13+ liefert der Kompass deshalb keine Daten, ohne dass ein Hinweis
     erscheint.
 
-13. **Das Ortszeit-Gitter hängt nicht am Menü "Raster".** Es wird allein vom Sonnenverlauf ein- und
-    ausgeschaltet ([SunPath.ts:153](src/sun/SunPath.ts#L153)) und liegt zusätzlich zum gewählten
+13. **Das Ortszeit-Gitter hängt nicht am Menü "Raster".** Es wird allein von der Weltzeit ein- und
+    ausgeschaltet ([WorldTime.ts:74](src/sun/WorldTime.ts#L74)) und liegt zusätzlich zum gewählten
     Koordinatengitter auf der Karte. Bei 15°-Raster fallen die schwarzen Meridiane des `DegreeGrid`
     daher fast nie mit den roten Stundenlinien zusammen – der Versatz ist die Zeitgleichung plus die
     Tageszeit. Als Canvas-Overlay verschwindet es außerdem während der Zoom-Animation, während die

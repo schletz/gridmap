@@ -1,6 +1,9 @@
 import { toRadians } from '../core/Geo';
 import { TypedEventEmitter } from '../core/TypedEventEmitter';
-import { SUNRISE_ALTITUDE, TWILIGHT_ALTITUDE, type SolarDayInfo } from './SolarAstronomy';
+import {
+    getDayBounds, SUNRISE_ALTITUDE, TWILIGHT_ALTITUDE,
+    type DayBounds, type SolarDayInfo
+} from './SolarAstronomy';
 
 interface SunTimelineEvents extends Record<string, unknown[]> {
     /** The user moved the knob; the argument is the position between 0 and 1. */
@@ -12,12 +15,19 @@ const CLASS_COLORS = { night: '#2f4468', twilight: '#b9d9f0', day: '#ffe89e' } a
 
 type BrightnessClass = keyof typeof CLASS_COLORS;
 
+/** Colour of the bar while no solar data is available, i.e. without a home marker. */
+const NO_DATA_COLOR = '#7d8794';
+
 /** Approximate width in pixels one hour label needs. */
 const HOUR_LABEL_WIDTH = 55;
 
 /**
  * Timeline above the map. It paints night, twilight and daylight of the selected
  * day and carries a draggable knob that selects the moment of the calculation.
+ *
+ * The day itself (setBounds) and its brightness (setDay) are set separately: the
+ * timeline also serves features that work without a location, and those leave the
+ * bar in a neutral colour.
  *
  * The timeline always works in the local timezone of the user: it spans from
  * local midnight to the next local midnight, therefore days with a daylight
@@ -27,6 +37,7 @@ export class SunTimeline extends TypedEventEmitter<SunTimelineEvents> {
     readonly #hoursDiv: HTMLElement;
     readonly #barDiv: HTMLElement;
     readonly #knob: HTMLElement;
+    #bounds: DayBounds = getDayBounds(new Date());
     #day: SolarDayInfo | null = null;
 
     /**
@@ -63,12 +74,20 @@ export class SunTimeline extends TypedEventEmitter<SunTimelineEvents> {
     }
 
     /**
-     * Shows a new day.
-     * @param day Day info as returned by getDayInfo().
+     * Shows the hour scale of another day.
+     * @param bounds Local midnight to local midnight of the selected day.
      */
-    setDay(day: SolarDayInfo): void {
-        this.#day = day;
+    setBounds(bounds: DayBounds): void {
+        this.#bounds = bounds;
         this.drawHours();
+    }
+
+    /**
+     * Shows the brightness of the selected day.
+     * @param day Day info as returned by getDayInfo() or null if no location is known.
+     */
+    setDay(day: SolarDayInfo | null): void {
+        this.#day = day;
         this.drawBar();
     }
 
@@ -78,11 +97,9 @@ export class SunTimeline extends TypedEventEmitter<SunTimelineEvents> {
      */
     setFraction(fraction: number): void {
         this.#knob.style.left = `${(fraction * 100).toFixed(4)}%`;
-        const day = this.#day;
-        if (!day) return;
-        const start = day.start.getTime();
+        const start = this.#bounds.start.getTime();
         this.#knob.textContent = SunTimeline.formatHour(
-            new Date(start + fraction * (day.end.getTime() - start)));
+            new Date(start + fraction * (this.#bounds.end.getTime() - start)));
     }
 
     /** Translates a pointer position into a knob position. */
@@ -96,28 +113,25 @@ export class SunTimeline extends TypedEventEmitter<SunTimelineEvents> {
 
     /**
      * Converts a moment of the shown day into its position on the timeline.
-     * @param day Currently shown day.
+     * @param bounds Bounds of the currently shown day.
      * @param time Moment within that day.
      * @returns Position between 0 and 1.
      */
-    private getFractionOf(day: SolarDayInfo, time: Date | number): number {
-        const start = day.start.getTime();
-        return (time.valueOf() - start) / (day.end.getTime() - start);
+    private getFractionOf(bounds: DayBounds, time: Date | number): number {
+        const start = bounds.start.getTime();
+        return (time.valueOf() - start) / (bounds.end.getTime() - start);
     }
 
     /** Draws the hour scale, thinning the labels out on narrow screens. */
     private drawHours(): void {
-        const day = this.#day;
-        if (!day) return;
-
         const width = this.container.clientWidth;
         const step = Math.max(1, Math.ceil(24 / Math.max(1, Math.floor(width / HOUR_LABEL_WIDTH))));
-        const date = day.start;
+        const date = this.#bounds.start;
         let html = '';
         let previousFraction = -1;
         for (let hour = 0; hour < 24; hour += step) {
             const time = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour);
-            const fraction = this.getFractionOf(day, time);
+            const fraction = this.getFractionOf(this.#bounds, time);
             // Die bei der Zeitumstellung übersprungene Stunde liefert dieselbe Position.
             if (fraction < 0 || fraction >= 1 || fraction === previousFraction) continue;
             previousFraction = fraction;
@@ -131,10 +145,14 @@ export class SunTimeline extends TypedEventEmitter<SunTimelineEvents> {
      * Paints night, twilight and daylight as a gradient with hard colour stops.
      * The stops are taken from the sampled altitudes, so polar day, polar night and
      * twilight lasting the whole night are covered without special cases.
+     * Without solar data the bar stays neutral.
      */
     private drawBar(): void {
         const day = this.#day;
-        if (!day) return;
+        if (!day) {
+            this.#barDiv.style.background = NO_DATA_COLOR;
+            return;
+        }
 
         const twilightAltitude = toRadians(TWILIGHT_ALTITUDE);
         const sunriseAltitude = toRadians(SUNRISE_ALTITUDE);
