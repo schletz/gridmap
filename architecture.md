@@ -11,7 +11,8 @@ HTML-Datei** ([index.html](index.html), Build-Ergebnis) für GitHub Pages ausgel
 - Koordinatengitter mit wählbarer Abstufung von 10° bis 1".
 - Adresssuche über Nominatim.
 - GPS-Position und Gerätekompass (Pfeilmarker mit Drehung).
-- Sonnenverlauf: Peilkreis mit Tagesbogen, Zeitleiste, Solardaten und Erdschatten.
+- Sonnenverlauf: Peilkreis mit Tagesbogen, Zeitleiste, Solardaten, Erdschatten und ein Gitter der
+  wahren Ortszeit.
 - Export des Markersatzes als QR-Code / Link, Import über den Querystring.
 
 Kein Backend, kein Build-Server: Vite bündelt alles zu einer Datei, ein Git-Hook baut vor jedem
@@ -21,7 +22,7 @@ Commit neu.
 
 ## Modulüberblick
 
-Gesamt 2.943 TS-Zeilen + 357 CSS + 78 HTML.
+Gesamt 3.308 TS-Zeilen + 357 CSS + 78 HTML.
 
 | Datei | Zeilen | Verantwortung |
 | --- | --- | --- |
@@ -49,8 +50,9 @@ Gesamt 2.943 TS-Zeilen + 357 CSS + 78 HTML.
 | [src/search/AddressSearch.ts](src/search/AddressSearch.ts) | 56 | Nominatim-Geocoding. |
 | [src/geolocation/GeolocationTracker.ts](src/geolocation/GeolocationTracker.ts) | 87 | `watchPosition` mit Drosselung. |
 | [src/geolocation/DeviceOrientationTracker.ts](src/geolocation/DeviceOrientationTracker.ts) | 44 | Gerätekompass. |
-| [src/sun/SolarAstronomy.ts](src/sun/SolarAstronomy.ts) | 394 | Zustandslose Sonnengeometrie über SunCalc. Kernstück des Sonnen-Features. |
-| [src/sun/SunPath.ts](src/sun/SunPath.ts) | 184 | Feature-Koordinator "Sonnenverlauf". |
+| [src/sun/SolarAstronomy.ts](src/sun/SolarAstronomy.ts) | 411 | Zustandslose Sonnengeometrie über SunCalc. Kernstück des Sonnen-Features. |
+| [src/sun/SunPath.ts](src/sun/SunPath.ts) | 189 | Feature-Koordinator "Sonnenverlauf". |
+| [src/sun/SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts) | 104 | Gitter der wahren Ortszeit (15°-Meridiane ab dem Sonnenmeridian). Canvas-Overlay, **kein** `MapGrid`. |
 | [src/sun/SunCompass.ts](src/sun/SunCompass.ts) | 272 | Peilkreis mit Tagesbogen und Jahresband (Canvas). |
 | [src/sun/SunTimeline.ts](src/sun/SunTimeline.ts) | 158 | Zeitleiste über der Karte mit Schieberegler. |
 | [src/sun/SunDataPanel.ts](src/sun/SunDataPanel.ts) | 68 | Tabelle "Solardaten". |
@@ -175,7 +177,9 @@ nirgends verwendet, es wird nie abgemeldet.
 - Skalierung mit `devicePixelRatio` über `setTransform`, gezeichnet wird in CSS-Pixeln
   ([Zeile 67-79](src/map/MapCanvasOverlay.ts#L67-L79)).
 - `z-index` ist entscheidend: Leaflets `.leaflet-map-pane` liegt bei 400, daher liegen
-  `EarthShadow` (401) und `SunCompass` (402) **über allen** Kartenlayern inklusive Marker.
+  `EarthShadow` (401), `SolarTimeGrid` (402) und `SunCompass` (403) **über allen** Kartenlayern
+  inklusive Marker. Die Reihenfolge ist inhaltlich gewählt: das Ortszeit-Gitter bleibt auch in der
+  Nachthälfte kräftig rot, der Peilkreis bleibt oben.
 
 ### 3. Sonnengeometrie ([SolarAstronomy.ts](src/sun/SolarAstronomy.ts))
 
@@ -190,6 +194,7 @@ Stundenwinkel dort undefiniert ist ([Doc-Kommentar Zeile 8-11](src/sun/SolarAstr
 | Höchststand | `findCulmination` [:187](src/sun/SolarAstronomy.ts#L187) | Parabelscheitel durch Maximum und seine zwei Nachbarn. |
 | Tagesbogen | `getDayArc` [:293](src/sun/SolarAstronomy.ts#L293) | abgetastet über einen **Sonnentag** (Sonnenmittag ±12 h), nicht über den lokalen Tag – sonst zerschneidet die lokale Mitternacht den Tagbogen entfernter Orte. |
 | Azimut | `getSample` [:114](src/sun/SolarAstronomy.ts#L114) | SunCalc misst ab Süden, hier wird auf "im Uhrzeigersinn ab Nord" umgerechnet. |
+| Sonnenmeridian | `getSubsolarLongitude` [:364](src/sun/SolarAstronomy.ts#L364) | Länge mit Stundenwinkel 0, also `rektaszension − sternzeit`, normiert auf [−180°, 180°). Die Zeitgleichung steckt bereits in der Rektaszension, das Ergebnis folgt daher der **wahren** Sonne. |
 
 `getEquatorialPosition` [:337](src/sun/SolarAstronomy.ts#L337) rechnet dieselben Formeln wie SunCalc
 nach, aber im äquatorialen System; `days` ist die SunCalc-Tageszählung ab J2000
@@ -260,6 +265,41 @@ den Stundenwinkel; ist `|cos H| > 1`, schneidet der Kreis den Rand nicht und die
   Korrektur `step = spacing / |cos(lat_mitte)|` ([Zeile 26](src/map/grids/MetricGrid.ts#L26)),
   weil Mercator-Strecken um 1/cos(φ) gedehnt sind. Der Abstand stimmt daher **exakt nur auf der
   Breite der Kartenmitte**.
+- `SolarTimeGrid`: siehe unten. Trotz des Namens **kein** `MapGrid`, sondern ein Canvas-Overlay, und
+  nicht über das Menü "Raster" erreichbar, sondern Teil des Sonnenverlaufs.
+
+### 8. Gitter der wahren Ortszeit ([SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts))
+
+Fachlich ein Längengitter mit 15° Abstand, verankert am **Sonnenmeridian**
+(`getSubsolarLongitude`). Dort ist der Stundenwinkel 0, also wahre Ortszeit 12 h; jede weitere
+Linie nach Osten ist eine Stunde später. Der Index `hour` zählt die Linien ab dem Sonnenmeridian,
+die Beschriftung ist `((12 + hour) mod 24)`
+([Zeile 71](src/sun/SolarTimeGrid.ts#L71)). Weil sich die Erde in einer Stunde um 15° dreht, fällt
+eine Weltkopie (+360°) genau auf ein Vielfaches von 24 Stunden – deshalb wird die dicke Mittagslinie
+über `clock === 12` erkannt und nicht über `hour === 0`; in gekachelten Weltkopien stimmt damit auch
+die Strichstärke.
+
+Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als Leaflet-Layer:
+
+- **Grund:** Leaflet klemmt in `SphericalMercator.project` jede Breite auf ±85,0511°. Ein an einer
+  Position verankertes Label (`L.marker`) rutscht deshalb auf den oberen Rand der *Weltkarte*,
+  sobald der Nutzer darüber hinausschiebt – die Beschriftung wanderte mit der Karte nach unten. In
+  Container-Koordinaten sitzt sie stattdessen fix `LABEL_TOP` Pixel unter dem oberen Rand der
+  *Ansicht*, unabhängig von Zoom und Verschiebung.
+- Die x-Position folgt derselben linearen Ersatzprojektion wie der Erdschatten: in Web-Mercator ist
+  die Länge linear in x, zwei Referenzpunkte genügen ([Zeile 56-57](src/sun/SolarTimeGrid.ts#L56-L57)).
+  Die Linien laufen über die **volle Höhe** der Ansicht, also auch über den Bereich jenseits der
+  Mercator-Grenze.
+- Die Linien werden in **zwei** Pfaden gezeichnet, einer je Strichstärke, weil `lineWidth` eine
+  Eigenschaft des Kontexts und nicht des Pfades ist ([Zeile 67](src/sun/SolarTimeGrid.ts#L67)).
+  Das `+ 0.5` auf der x-Position hält Linien ungerader Breite auf dem Pixelraster.
+- Die weiße Kontur der Beschriftung entsteht aus `strokeText` **vor** `fillText`
+  ([drawLabels :92](src/sun/SolarTimeGrid.ts#L92)) und ersetzt den `text-shadow` der übrigen
+  Gitterlabels. Alle Konturen werden vor allen Füllungen gezeichnet, damit die Kontur eines Labels
+  nicht in das Nachbarlabel hineinragt.
+- Das Gitter hängt am **gewählten Moment**, nicht nur an der Kartenansicht: `SunPath.updateMoment()`
+  ruft `setTime()` ([SunPath.ts:187](src/sun/SunPath.ts#L187)). Beim Ziehen des Zeitreglers wandert
+  das Gitter also nach Westen.
 
 ---
 
@@ -299,6 +339,10 @@ den Stundenwinkel; ist `|cos H| > 1`, schneidet der Kreis den Rand nicht und die
 | `MERCATOR_LIMIT` | [SolarAstronomy.ts:24](src/sun/SolarAstronomy.ts#L24) | 85.0511° (Leaflet selbst rechnet mit 85.0511287798 – für die Schattenkante irrelevant). |
 | `HOME_TOLERANCE` | [SunPath.ts:25](src/sun/SunPath.ts#L25) | 0.0005° ≈ **56 m** in der Breite; darunter gilt der Home-Punkt als unverändert. |
 | `PADDING` | [SunCompass.ts:7](src/sun/SunCompass.ts#L7) | 30 px Abstand des Peilkreises zum Kartenrand. |
+| `HOUR_SPACING` | [SolarTimeGrid.ts:6](src/sun/SolarTimeGrid.ts#L6) | 15° = eine Stunde Erddrehung. Andere Werte ergeben keine ganzen Stunden und damit falsche Beschriftungen. |
+| `MAX_LINES` | [SolarTimeGrid.ts:9](src/sun/SolarTimeGrid.ts#L9) | 100 Meridiane, Notbremse bei Ansichten mit vielen Weltkopien. |
+| `LINE_COLOR`, `NOON_WIDTH`, `HOUR_WIDTH` | [SolarTimeGrid.ts:12-16](src/sun/SolarTimeGrid.ts#L12-L16) | `#d40000`; Stundenlinien 1 px, die 12h-Linie 3 px. |
+| `LABEL_TOP` | [SolarTimeGrid.ts:20](src/sun/SolarTimeGrid.ts#L20) | 6 px unter dem oberen Rand der **Ansicht** – dieser feste Pixelwert ist der Grund für das Canvas. |
 | `COLUMN_WIDTH` | [EarthShadow.ts:10](src/sun/EarthShadow.ts#L10) | 2 px pro Scan-Spalte. |
 | `SHADOW_COLOR` | [EarthShadow.ts:12](src/sun/EarthShadow.ts#L12) | `rgba(0,6,30,0.11)`; zwei Lagen ergeben 0.208 für die Nacht. |
 | `HOUR_LABEL_WIDTH` | [SunTimeline.ts:16](src/sun/SunTimeline.ts#L16) | 55 px – bestimmt, wie stark die Stundenbeschriftung ausgedünnt wird. |
@@ -418,10 +462,16 @@ eine Liste werden; `EarthShadow` verträgt beliebig viele Schwellen bereits, da 
 hartkodiert). Das URL-Format hat **keine Version** – ältere Links mit vier Feldern müssten
 weiterhin dekodierbar bleiben.
 
+**Ortszeit-Gitter feiner rastern** — `HOUR_SPACING`
+([SolarTimeGrid.ts:6](src/sun/SolarTimeGrid.ts#L6)) ist an die Stundenbeschriftung gekoppelt: der
+Linienindex `hour` **ist** der Stundenversatz. Für z. B. halbe Stunden (7,5°) müsste die
+Beschriftung in [Zeile 71](src/sun/SolarTimeGrid.ts#L71) auf Stunden **und** Minuten umgestellt und
+das Kriterium der Mittagslinie (`clock === 12`) entsprechend angepasst werden.
+
 **Zusätzliches Canvas-Overlay** — von `MapCanvasOverlay`
 ([MapCanvasOverlay.ts:12](src/map/MapCanvasOverlay.ts#L12)) ableiten, `draw(context, size)`
-implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Peilkreis, 1000
-Menü-Button in [index.css:153](src/styles/index.css#L153)).
+implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Ortszeit-Gitter,
+403 Peilkreis, 1000 Menü-Button in [index.css:153](src/styles/index.css#L153)).
 
 **Neues Menüfeld** — Markup in [src/index.html](src/index.html) ergänzen und in `App` per
 `requireElement` holen. Das Menü ist ein Flex-Container, dessen direkte Kinder gerahmt werden
@@ -499,7 +549,14 @@ Menü-Button in [index.css:153](src/styles/index.css#L153)).
     nirgends gerufen; auf iOS 13+ liefert der Kompass deshalb keine Daten, ohne dass ein Hinweis
     erscheint.
 
-13. **`index.html` im Root ist generiert** und wird vom Pre-Commit-Hook überschrieben. Änderungen
+13. **Das Ortszeit-Gitter hängt nicht am Menü "Raster".** Es wird allein vom Sonnenverlauf ein- und
+    ausgeschaltet ([SunPath.ts:153](src/sun/SunPath.ts#L153)) und liegt zusätzlich zum gewählten
+    Koordinatengitter auf der Karte. Bei 15°-Raster fallen die schwarzen Meridiane des `DegreeGrid`
+    daher fast nie mit den roten Stundenlinien zusammen – der Versatz ist die Zeitgleichung plus die
+    Tageszeit. Als Canvas-Overlay verschwindet es außerdem während der Zoom-Animation, während die
+    `MapGrid`-Linien stehen bleiben.
+
+14. **`index.html` im Root ist generiert** und wird vom Pre-Commit-Hook überschrieben. Änderungen
     dort sind beim nächsten Commit weg – Quelle ist [src/index.html](src/index.html).
 
 ---

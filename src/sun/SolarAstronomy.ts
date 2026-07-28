@@ -1,5 +1,5 @@
 import SunCalc from 'suncalc';
-import { toRadians } from '../core/Geo';
+import { toDegrees, toRadians } from '../core/Geo';
 
 /**
  * Stateless helpers for solar geometry, built on top of SunCalc.
@@ -348,6 +348,23 @@ export function getEquatorialPosition(date: Date): EquatorialPosition {
         rightAscension: Math.atan2(Math.sin(eclipticLongitude) * Math.cos(OBLIQUITY), Math.cos(eclipticLongitude)),
         siderealTime: toRadians(280.16 + 360.9856235 * days)
     };
+}
+
+/**
+ * Longitude of the meridian the sun stands in at a given moment, i.e. the
+ * meridian where the true local time is exactly 12:00.
+ *
+ * The hour angle of a meridian is H = siderealTime + λ − rightAscension and is
+ * zero on that meridian, which gives λ directly. Because the equation of time is
+ * contained in the right ascension, the result follows the real sun and not the
+ * mean sun.
+ * @param date Moment of the observation.
+ * @returns Longitude in degrees within [-180, 180).
+ */
+export function getSubsolarLongitude(date: Date): number {
+    const position = getEquatorialPosition(date);
+    const longitude = toDegrees(position.rightAscension - position.siderealTime);
+    return ((longitude + 180) % 360 + 360) % 360 - 180;
 }
 
 /**

@@ -7,6 +7,7 @@ import { SunCompass } from './SunCompass';
 import { SunDataPanel } from './SunDataPanel';
 import { SunDateControl } from './SunDateControl';
 import { SunTimeline } from './SunTimeline';
+import { SolarTimeGrid } from './SolarTimeGrid';
 
 /** Elements the feature renders into. */
 export interface SunPathElements {
@@ -40,6 +41,7 @@ export class SunPath extends TypedEventEmitter<SunPathEvents> {
     readonly #dataPanel: SunDataPanel;
     readonly #compass: SunCompass;
     readonly #shadow: EarthShadow;
+    readonly #timeGrid: SolarTimeGrid;
 
     #home: LatLngTuple | null = null;
     #requested = false;
@@ -57,6 +59,7 @@ export class SunPath extends TypedEventEmitter<SunPathEvents> {
         this.#dataPanel = new SunDataPanel(elements.dataPanel);
         this.#compass = new SunCompass(map);
         this.#shadow = new EarthShadow(map);
+        this.#timeGrid = new SolarTimeGrid(map);
 
         this.#timeline.on('timechanged', (fraction) => {
             this.#fraction = fraction;
@@ -147,6 +150,7 @@ export class SunPath extends TypedEventEmitter<SunPathEvents> {
         this.elements.dataPanel.hidden = !active;
         this.#compass.setVisible(active);
         this.#shadow.setVisible(active);
+        this.#timeGrid.setVisible(active);
         this.emit('activechanged', active);
 
         // The timeline takes space away from the map.
@@ -180,5 +184,6 @@ export class SunPath extends TypedEventEmitter<SunPathEvents> {
         this.#timeline.setFraction(this.#fraction);
         this.#compass.setSun(getSample(time.getTime(), home[0], home[1]));
         this.#shadow.setTime(time);
+        this.#timeGrid.setTime(time);
     }
 }

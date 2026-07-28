@@ -43,7 +43,7 @@ export class SunCompass extends MapCanvasOverlay {
     #sun: SolarSample | null = null;
 
     constructor(map: L.Map) {
-        super(map, 'sun-compass', 402);
+        super(map, 'sun-compass', 403);
     }
 
     /**
