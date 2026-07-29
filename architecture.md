@@ -13,7 +13,8 @@ HTML-Datei** ([index.html](index.html), Build-Ergebnis) für GitHub Pages ausgel
 - GPS-Position und Gerätekompass (Pfeilmarker mit Drehung).
 - Sonnenverlauf: Peilkreis mit Tagesbogen und Solardaten für den Home-Marker.
 - Weltzeit: Erdschatten und ein Gitter der wahren Ortszeit, ohne Bezugspunkt.
-- Zeitleiste und Datumsauswahl gehören beiden Features gemeinsam.
+- Zeitleiste und Datumsauswahl gehören beiden Features gemeinsam, inklusive eines Live-Modus, der
+  sekündlich die Systemzeit übernimmt.
 - Export des Markersatzes als QR-Code / Link, Import über den Querystring.
 
 Kein Backend, kein Build-Server: Vite bündelt alles zu einer Datei, ein Git-Hook baut vor jedem
@@ -23,14 +24,14 @@ Commit neu.
 
 ## Modulüberblick
 
-Gesamt 3.553 TS-Zeilen + 376 CSS + 82 HTML.
+Gesamt 3.630 TS-Zeilen + 394 CSS + 84 HTML.
 
 | Datei | Zeilen | Verantwortung |
 | --- | --- | --- |
 | [src/main.ts](src/main.ts) | 5 | Einstiegspunkt: CSS importieren, `new App()`. |
 | [src/App.ts](src/App.ts) | 196 | Composition Root: erzeugt Karte + alle Features und verdrahtet deren Events. Enthält selbst keine Fachlogik. |
-| [src/index.html](src/index.html) | 82 | Statisches DOM-Gerüst. Alle IDs, die `requireElement` erwartet, stehen hier. |
-| [src/styles/index.css](src/styles/index.css) | 376 | Layout (Flexbox: Menü links, Kartenbereich rechts), Marker-, Grid-, Sonnenverlauf- und Weltzeit-Styles. |
+| [src/index.html](src/index.html) | 84 | Statisches DOM-Gerüst. Alle IDs, die `requireElement` erwartet, stehen hier. |
+| [src/styles/index.css](src/styles/index.css) | 394 | Layout (Flexbox: Menü links, Kartenbereich rechts), Marker-, Grid-, Sonnenverlauf- und Weltzeit-Styles. |
 | [src/core/Dom.ts](src/core/Dom.ts) | 15 | `requireElement` – Typ-geprüfter `getElementById`, wirft bei fehlendem Element. |
 | [src/core/Geo.ts](src/core/Geo.ts) | 11 | `LatLngTuple`, `EARTH_RADIUS`, Grad/Bogenmaß. |
 | [src/core/TypedEventEmitter.ts](src/core/TypedEventEmitter.ts) | 58 | Typisierte Pub/Sub-Basisklasse; Basis fast aller Feature-Klassen. |
@@ -52,14 +53,14 @@ Gesamt 3.553 TS-Zeilen + 376 CSS + 82 HTML.
 | [src/geolocation/GeolocationTracker.ts](src/geolocation/GeolocationTracker.ts) | 87 | `watchPosition` mit Drosselung. |
 | [src/geolocation/DeviceOrientationTracker.ts](src/geolocation/DeviceOrientationTracker.ts) | 44 | Gerätekompass. |
 | [src/sun/SolarAstronomy.ts](src/sun/SolarAstronomy.ts) | 415 | Zustandslose Sonnengeometrie über SunCalc. Kernstück beider Sonnen-Features. |
-| [src/sun/TimeSelection.ts](src/sun/TimeSelection.ts) | 125 | Gemeinsamer Zeitpunkt (Tag + Tageszeit) von `SunPath` und `WorldTime`; besitzt Zeitleiste und Datumsauswahl. Kennt **keinen** Ort. |
+| [src/sun/TimeSelection.ts](src/sun/TimeSelection.ts) | 181 | Gemeinsamer Zeitpunkt (Tag + Tageszeit) von `SunPath` und `WorldTime`; besitzt Zeitleiste, Datumsauswahl und den Live-Timer. Kennt **keinen** Ort. |
 | [src/sun/SunPath.ts](src/sun/SunPath.ts) | 159 | Feature-Koordinator "Sonnenverlauf": Peilkreis + Solardaten. Braucht einen Home-Marker. |
 | [src/sun/WorldTime.ts](src/sun/WorldTime.ts) | 78 | Feature-Koordinator "Weltzeit": Erdschatten + Ortszeit-Gitter. Braucht **keinen** Bezugspunkt. |
 | [src/sun/SolarTimeGrid.ts](src/sun/SolarTimeGrid.ts) | 104 | Gitter der wahren Ortszeit (15°-Meridiane ab dem Sonnenmeridian). Canvas-Overlay, **kein** `MapGrid`. |
 | [src/sun/SunCompass.ts](src/sun/SunCompass.ts) | 272 | Peilkreis mit Tagesbogen und Jahresband (Canvas). |
 | [src/sun/SunTimeline.ts](src/sun/SunTimeline.ts) | 176 | Zeitleiste über der Karte mit Schieberegler. Stundenskala (`setBounds`) und Helligkeit (`setDay`) werden getrennt gesetzt. |
 | [src/sun/SunDataPanel.ts](src/sun/SunDataPanel.ts) | 68 | Tabelle "Solardaten". |
-| [src/sun/SunDateControl.ts](src/sun/SunDateControl.ts) | 50 | Menüblock "Zeitpunkt": Datumsauswahl + "Jetzt"-Knopf. |
+| [src/sun/SunDateControl.ts](src/sun/SunDateControl.ts) | 72 | Menüblock "Zeitpunkt": Datumsauswahl, "Jetzt"-Knopf (⟳) und Live-Knopf. Reine Sicht, hält keinen Zustand. |
 | [src/sun/EarthShadow.ts](src/sun/EarthShadow.ts) | 129 | Terminator/Erdschatten (Canvas, spaltenweise). |
 | [src/ui/GridSelector.ts](src/ui/GridSelector.ts) | 72 | Menüblock "Raster". |
 | [src/ui/MapLayerSelector.ts](src/ui/MapLayerSelector.ts) | 48 | Menüblock "Karten". |
@@ -145,14 +146,21 @@ new App()                                              App.ts:51
 Laufender Betrieb, Zeitpfad:
 
 ```
-Regler ziehen / Datum wählen / ⟳            SunTimeline.ts:111 bzw. SunDateControl.ts:33
- └─ TimeSelection.update(dayChanged)        TimeSelection.ts:116
+Regler ziehen / Datum wählen / ⟳            SunTimeline.ts:111 bzw. SunDateControl.ts:40/46
+ └─ [beendet den Live-Modus]                TimeSelection.ts:56-69
+ └─ TimeSelection.update(dayChanged)        TimeSelection.ts:172
       ├─ [dayChanged] dateControl.setDate + timeline.setBounds
       ├─ timeline.setFraction
       ├─ [dayChanged] emit 'daychanged'     → SunPath.setDate → getDayInfo (1441 Samples)
       │                                        → emit 'daychanged'(day) → timeline.setDay
       └─ emit 'momentchanged'               → SunPath.setMoment  (Sonnenstand im Peilkreis)
                                             → WorldTime.setTime  (Erdschatten + Ortszeit)
+
+Live-Knopf                                  SunDateControl.ts:48
+ └─ TimeSelection.setLive(true)             TimeSelection.ts:108
+      └─ setInterval(1000 ms)
+           └─ applyNow(false)               TimeSelection.ts:143  dayChanged nur um Mitternacht
+                └─ update(dayChanged)       → wie oben
 ```
 
 Laufender Betrieb, Markerpfad:
@@ -260,6 +268,25 @@ Datumsauswahl.
 - `WorldTime` merkt sich den Zeitpunkt auch im ausgeschalteten Zustand
   ([WorldTime.ts:59-63](src/sun/WorldTime.ts#L59-L63)), damit das Einschalten sofort den aktuell
   gewählten Moment zeigt statt den Stand der letzten Aktivierung.
+
+#### Live-Modus
+
+Der Live-Knopf im Menüblock "Zeitpunkt" lässt die Auswahl der Systemuhr folgen. Der Timer gehört
+`TimeSelection`, nicht der Ansicht: `SunDateControl` meldet nur den Knopfdruck (`livetoggled`) und
+zeigt über `setLive()`, was ihm gesagt wird.
+
+- `setLive(true)` startet ein `setInterval` mit `LIVE_INTERVAL` (1000 ms) und übernimmt sofort den
+  aktuellen Moment ([TimeSelection.ts:108-121](src/sun/TimeSelection.ts#L108-L121)); jeder Tick läuft
+  über `applyNow(false)` und damit über denselben Pfad wie der ⟳-Knopf.
+- **`applyNow` meldet den Tageswechsel nur, wenn der lokale Tag wirklich wechselt.** `setToNow()`
+  (⟳ und Start) erzwingt ihn mit `true`, der Live-Tick nicht. Sonst würde jede Sekunde
+  `daychanged` → `SunPath.setDate` → `getDayInfo` mit 1441 Samples laufen; so fällt diese Rechnung
+  nur um Mitternacht an ([TimeSelection.ts:143-151](src/sun/TimeSelection.ts#L143-L151)).
+- Jede Handbedienung beendet den Modus – Regler ziehen, Datum wählen, ⟳
+  ([TimeSelection.ts:56-69](src/sun/TimeSelection.ts#L56-L69)). Ohne das würde der nächste Tick die
+  eben getroffene Wahl sofort überschreiben.
+- `setVisible(false)` schaltet den Modus ebenfalls ab: sind beide Features aus, hört niemand mehr zu,
+  und der versteckte Knopf ließe sich nicht mehr bedienen.
 
 ### 4. Sonnengeometrie ([SolarAstronomy.ts](src/sun/SolarAstronomy.ts))
 
@@ -425,6 +452,7 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 | `LABEL_TOP` | [SolarTimeGrid.ts:20](src/sun/SolarTimeGrid.ts#L20) | 6 px unter dem oberen Rand der **Ansicht** – dieser feste Pixelwert ist der Grund für das Canvas. |
 | `COLUMN_WIDTH` | [EarthShadow.ts:10](src/sun/EarthShadow.ts#L10) | 2 px pro Scan-Spalte. |
 | `SHADOW_COLOR` | [EarthShadow.ts:12](src/sun/EarthShadow.ts#L12) | `rgba(0,6,30,0.11)`; zwei Lagen ergeben 0.208 für die Nacht. |
+| `LIVE_INTERVAL` | [TimeSelection.ts:15](src/sun/TimeSelection.ts#L15) | 1000 ms Taktrate des Live-Modus. Ein kleinerer Wert lohnt nicht: die Zeitleiste zeigt nur Minuten, gezeichnet wird aber der volle Erdschatten. |
 | `HOUR_LABEL_WIDTH` | [SunTimeline.ts:22](src/sun/SunTimeline.ts#L22) | 55 px – bestimmt, wie stark die Stundenbeschriftung ausgedünnt wird. |
 | `CLASS_COLORS` | [SunTimeline.ts:14](src/sun/SunTimeline.ts#L14) | Nacht `#2f4468`, Dämmerung `#b9d9f0`, Tag `#ffe89e`. |
 | `NO_DATA_COLOR` | [SunTimeline.ts:19](src/sun/SunTimeline.ts#L19) | `#7d8794` – Balkenfarbe ohne Solardaten, also solange kein Home-Marker gesetzt ist. |

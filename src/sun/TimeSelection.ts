@@ -11,6 +11,9 @@ export interface TimeSelectionElements {
     readonly dateControl: HTMLElement;
 }
 
+/** Distance between two updates of the live mode in milliseconds. */
+const LIVE_INTERVAL = 1000;
+
 interface TimeSelectionEvents extends Record<string, unknown[]> {
     /** Another day was selected; always followed by momentchanged. */
     daychanged: [date: Date];
@@ -36,6 +39,9 @@ export class TimeSelection extends TypedEventEmitter<TimeSelectionEvents> {
     #date = new Date();
     #fraction = 0;
     #visible = false;
+    #live = false;
+    /** Handle of the live timer, undefined while the live mode is off. */
+    #liveTimer: ReturnType<typeof setInterval> | undefined;
 
     /**
      * @param elements Elements of the two controls.
@@ -45,12 +51,22 @@ export class TimeSelection extends TypedEventEmitter<TimeSelectionEvents> {
         this.#timeline = new SunTimeline(elements.timeline);
         this.#dateControl = new SunDateControl(elements.dateControl);
 
+        // Every manual selection ends the live mode, otherwise the next tick would
+        // immediately overwrite what the user just picked.
         this.#timeline.on('timechanged', (fraction) => {
+            this.setLive(false);
             this.#fraction = fraction;
             this.update(false);
         });
-        this.#dateControl.on('datechanged', (date) => this.setDate(date));
-        this.#dateControl.on('nowselected', () => this.setToNow());
+        this.#dateControl.on('datechanged', (date) => {
+            this.setLive(false);
+            this.setDate(date);
+        });
+        this.#dateControl.on('nowselected', () => {
+            this.setLive(false);
+            this.setToNow();
+        });
+        this.#dateControl.on('livetoggled', () => this.setLive(!this.#live));
 
         elements.timeline.hidden = true;
         elements.dateControl.hidden = true;
@@ -73,7 +89,35 @@ export class TimeSelection extends TypedEventEmitter<TimeSelectionEvents> {
         this.#visible = visible;
         this.elements.timeline.hidden = !visible;
         this.elements.dateControl.hidden = !visible;
+        // Nobody listens while every feature is off, so the timer would only burn
+        // cycles - and the hidden live button could not be switched off any more.
+        if (!visible) this.setLive(false);
         this.emit('visibilitychanged', visible);
+    }
+
+    /** True while the selection follows the system time. */
+    isLive(): boolean {
+        return this.#live;
+    }
+
+    /**
+     * Starts or stops following the system time. While it runs, the selection is
+     * set to the current moment once per second.
+     * @param live True to follow the system time.
+     */
+    setLive(live: boolean): void {
+        if (live === this.#live) return;
+        this.#live = live;
+        this.#dateControl.setLive(live);
+
+        if (this.#liveTimer !== undefined) {
+            clearInterval(this.#liveTimer);
+            this.#liveTimer = undefined;
+        }
+        if (!live) return;
+
+        this.#liveTimer = setInterval(() => this.applyNow(false), LIVE_INTERVAL);
+        this.applyNow(false);
     }
 
     /**
@@ -87,12 +131,23 @@ export class TimeSelection extends TypedEventEmitter<TimeSelectionEvents> {
 
     /** Takes over the current date and the current time. */
     setToNow(): void {
+        this.applyNow(true);
+    }
+
+    /**
+     * Takes over the current moment.
+     * @param forceDay True to announce a new day even if it is the same one. Every
+     * day change costs the listeners a full day calculation, therefore the live
+     * mode passes false and only pays it at midnight.
+     */
+    private applyNow(forceDay: boolean): void {
         const now = new Date();
         const bounds = getDayBounds(now);
+        const dayChanged = forceDay || bounds.start.getTime() !== getDayBounds(this.#date).start.getTime();
         this.#date = now;
         this.#fraction = (now.getTime() - bounds.start.getTime())
             / (bounds.end.getTime() - bounds.start.getTime());
-        this.update(true);
+        this.update(dayChanged);
     }
 
     /**
