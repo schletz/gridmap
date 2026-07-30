@@ -12,7 +12,8 @@ HTML-Datei** ([index.html](index.html), Build-Ergebnis) für GitHub Pages ausgel
 - Adresssuche über Nominatim.
 - GPS-Position und Gerätekompass (Pfeilmarker mit Drehung).
 - Sonnenverlauf: Peilkreis mit Tagesbogen und Solardaten für den Home-Marker.
-- Weltzeit: Erdschatten und ein Gitter der wahren Ortszeit, ohne Bezugspunkt.
+- Weltzeit: Erdschatten und ein Gitter der wahren Ortszeit, ohne Bezugspunkt; das Einschalten
+  schaltet auf die Basemap "Road" um und rückt die Karte in eine Weltübersicht.
 - Zeitleiste und Datumsauswahl gehören beiden Features gemeinsam, inklusive eines Live-Modus, der
   sekündlich die Systemzeit übernimmt.
 - Export des Markersatzes als QR-Code / Link, Import über den Querystring.
@@ -24,18 +25,18 @@ Commit neu.
 
 ## Modulüberblick
 
-Gesamt 3.630 TS-Zeilen + 394 CSS + 84 HTML.
+Gesamt 3.660 TS-Zeilen + 394 CSS + 84 HTML.
 
 | Datei | Zeilen | Verantwortung |
 | --- | --- | --- |
 | [src/main.ts](src/main.ts) | 5 | Einstiegspunkt: CSS importieren, `new App()`. |
-| [src/App.ts](src/App.ts) | 196 | Composition Root: erzeugt Karte + alle Features und verdrahtet deren Events. Enthält selbst keine Fachlogik. |
+| [src/App.ts](src/App.ts) | 215 | Composition Root: erzeugt Karte + alle Features und verdrahtet deren Events. Enthält selbst keine Fachlogik. |
 | [src/index.html](src/index.html) | 84 | Statisches DOM-Gerüst. Alle IDs, die `requireElement` erwartet, stehen hier. |
 | [src/styles/index.css](src/styles/index.css) | 394 | Layout (Flexbox: Menü links, Kartenbereich rechts), Marker-, Grid-, Sonnenverlauf- und Weltzeit-Styles. |
 | [src/core/Dom.ts](src/core/Dom.ts) | 15 | `requireElement` – Typ-geprüfter `getElementById`, wirft bei fehlendem Element. |
 | [src/core/Geo.ts](src/core/Geo.ts) | 11 | `LatLngTuple`, `EARTH_RADIUS`, Grad/Bogenmaß. |
 | [src/core/TypedEventEmitter.ts](src/core/TypedEventEmitter.ts) | 58 | Typisierte Pub/Sub-Basisklasse; Basis fast aller Feature-Klassen. |
-| [src/map/MapLayerCatalog.ts](src/map/MapLayerCatalog.ts) | 79 | Datenliste der Basemaps (Titel, URL-Template, Zoomgrenzen). |
+| [src/map/MapLayerCatalog.ts](src/map/MapLayerCatalog.ts) | 85 | Datenliste der Basemaps (Titel, URL-Template, Zoomgrenzen). `ROAD_LAYER` ist zusätzlich einzeln exportiert. |
 | [src/map/MapCanvasOverlay.ts](src/map/MapCanvasOverlay.ts) | 90 | Abstrakte Canvas-Overlay-Basis am Map-Container (nicht an einer Leaflet-Pane). |
 | [src/map/DistanceCircleOverlay.ts](src/map/DistanceCircleOverlay.ts) | 154 | Konzentrische Entfernungskreise als `L.circle`-Gruppe. |
 | [src/map/DistanceCircleLabels.ts](src/map/DistanceCircleLabels.ts) | 91 | Radiusbeschriftungen der Kreise. |
@@ -63,7 +64,7 @@ Gesamt 3.630 TS-Zeilen + 394 CSS + 84 HTML.
 | [src/sun/SunDateControl.ts](src/sun/SunDateControl.ts) | 72 | Menüblock "Zeitpunkt": Datumsauswahl, "Jetzt"-Knopf (⟳) und Live-Knopf. Reine Sicht, hält keinen Zustand. |
 | [src/sun/EarthShadow.ts](src/sun/EarthShadow.ts) | 129 | Terminator/Erdschatten (Canvas, spaltenweise). |
 | [src/ui/GridSelector.ts](src/ui/GridSelector.ts) | 72 | Menüblock "Raster". |
-| [src/ui/MapLayerSelector.ts](src/ui/MapLayerSelector.ts) | 48 | Menüblock "Karten". |
+| [src/ui/MapLayerSelector.ts](src/ui/MapLayerSelector.ts) | 53 | Menüblock "Karten"; `select()` ist auch von außen aufrufbar. |
 | [src/ui/OptionsMenu.ts](src/ui/OptionsMenu.ts) | 28 | Ein-/Ausblenden des Seitenmenüs. |
 | [src/types/qrious.d.ts](src/types/qrious.d.ts) | 26 | Ambient-Deklaration für QRious (liefert keine Typen mit). |
 
@@ -112,35 +113,37 @@ Commit – den erledigt dann ohnehin der Pre-Commit-Hook.
 ## Datenfluss
 
 ```
-new App()                                              App.ts:51
- ├─ L.Map('map', {zoomControl:false}).setView(...)      App.ts:51   Zentrum AT, Zoom 8
- ├─ trackUserInteraction()                              App.ts:192  setzt #userIsMoving
- ├─ MapLayerSelector(#mapTypeList)                      MapLayerSelector.ts:18
+new App()                                              App.ts:61
+ ├─ L.Map('map', {zoomControl:false}).setView(...)      App.ts:62   Zentrum AT, Zoom 8
+ ├─ trackUserInteraction()                              App.ts:211  setzt #userIsMoving
+ ├─ MapLayerSelector(#mapTypeList) → #mapLayers         App.ts:67
  │     └─ select(MAP_LAYERS[0])                         → OSM sofort aktiv
  ├─ GridSelector(#stepList)                             GridSelector.ts:45   (kein Default!)
- ├─ DistanceCircleOverlay(CIRCLE_STEPS)                 App.ts:59
- ├─ createMarkers()                                     App.ts:75
+ ├─ DistanceCircleOverlay(CIRCLE_STEPS)                 App.ts:70
+ ├─ createMarkers()                                     App.ts:86
  │     ├─ MarkerController → MarkerStore(localStorage)  MarkerStore.ts:26
  │     ├─ [Query enthält setMarkers] loadFromQueryString + history.replaceState
- │     │                                                App.ts:83-86
- │     ├─ QrCodeExport(#markerList)                     App.ts:88
- │     └─ on markerselected / homechanged / clearall    App.ts:91-100
- ├─ TimeSelection(#sunTimeline, #sunPathControl)        App.ts:61   setToNow(), beides hidden
- ├─ createSunPath()                                     App.ts:109
- │     ├─ on activechanged → circles.setEnabled(!aktiv) App.ts:115
- │     └─ on daychanged    → time.setDay(tag|null)      App.ts:118
- ├─ createWorldTime()                                   App.ts:123
- ├─ connectTimeSelection()                              App.ts:131
- │     ├─ time.daychanged      → sunPath.setDate                    App.ts:132
+ │     │                                                App.ts:94-97
+ │     ├─ QrCodeExport(#markerList)                     App.ts:99
+ │     └─ on markerselected / homechanged / clearall    App.ts:102-111
+ ├─ TimeSelection(#sunTimeline, #sunPathControl)        App.ts:72   setToNow(), beides hidden
+ ├─ createSunPath()                                     App.ts:120
+ │     ├─ on activechanged → circles.setEnabled(!aktiv) App.ts:126
+ │     └─ on daychanged    → time.setDay(tag|null)      App.ts:129
+ ├─ createWorldTime()                                   App.ts:134
+ │     └─ on activechanged → [aktiv] mapLayers.select(WORLD_TIME_LAYER)
+ │                                 + map.setView(WORLD_TIME_VIEW)   App.ts:138-142
+ ├─ connectTimeSelection()                              App.ts:150
+ │     ├─ time.daychanged      → sunPath.setDate                    App.ts:151
  │     ├─ time.momentchanged   → sunPath.setMoment + worldTime.setTime
- │     ├─ time.visibilitychanged → map.invalidateSize()             App.ts:138
- │     ├─ sunPath/worldTime.activechanged → time.setVisible(a || b) App.ts:141-143
- │     └─ time.refresh()  → Startzeitpunkt an beide Features        App.ts:146
- ├─ createGeolocation()                                 App.ts:150
+ │     ├─ time.visibilitychanged → map.invalidateSize()             App.ts:157
+ │     ├─ sunPath/worldTime.activechanged → time.setVisible(a || b) App.ts:160-162
+ │     └─ time.refresh()  → Startzeitpunkt an beide Features        App.ts:165
+ ├─ createGeolocation()                                 App.ts:169
  │     ├─ GeolocationTracker.positionchanged → markers.setLocation
  │     └─ DeviceOrientationTracker.headingchanged → markers.setLocationHeading
- ├─ createSearch()   → found → setView + addMarker      App.ts:173
- └─ createOptionsMenu() → toggled → invalidateSize      App.ts:182
+ ├─ createSearch()   → found → setView + addMarker      App.ts:192
+ └─ createOptionsMenu() → toggled → invalidateSize      App.ts:201
 ```
 
 Laufender Betrieb, Zeitpfad:
@@ -188,17 +191,17 @@ das Home bei jedem Fix abschalten.
 
 ### Invarianten der Reihenfolge
 
-1. `#circles` muss vor `createMarkers()` existieren ([App.ts:59-60](src/App.ts#L59-L60)), weil der
+1. `#circles` muss vor `createMarkers()` existieren ([App.ts:70-71](src/App.ts#L70-L71)), weil der
    `homechanged`-Handler es referenziert.
 2. `#sunPath`, `#worldTime` und `#geolocation` werden **nach** `createMarkers()` gesetzt
-   ([App.ts:65-68](src/App.ts#L65-L68)). Das ist nur zulässig, weil `MarkerController` im Konstruktor
+   ([App.ts:76-79](src/App.ts#L76-L79)). Das ist nur zulässig, weil `MarkerController` im Konstruktor
    weder `homechanged` noch `clearall` feuert. Wer das ändert, bekommt einen Zugriff auf ein noch
    nicht initialisiertes `readonly`-Feld.
-3. `#time` muss **vor** `createSunPath()` existieren ([App.ts:61](src/App.ts#L61)), weil der
+3. `#time` muss **vor** `createSunPath()` existieren ([App.ts:72](src/App.ts#L72)), weil der
    `daychanged`-Handler des Sonnenverlaufs darauf zugreift; `connectTimeSelection()` läuft
-   umgekehrt **nach** beiden Features ([App.ts:67](src/App.ts#L67)).
+   umgekehrt **nach** beiden Features ([App.ts:78](src/App.ts#L78)).
 4. `TimeSelection.refresh()` ist der **letzte** Schritt der Verdrahtung
-   ([App.ts:146](src/App.ts#L146)). Beide Features starten mit `new Date()` als Platzhalter; erst
+   ([App.ts:165](src/App.ts#L165)). Beide Features starten mit `new Date()` als Platzhalter; erst
    `refresh()` schiebt ihnen den tatsächlich gewählten Zeitpunkt zu.
 5. `loadFromQueryString()` läuft **nach** dem Registrieren des `changed`-Listeners
    ([MarkerController.ts:53](src/markers/MarkerController.ts#L53)), sonst bliebe die importierte
@@ -251,15 +254,15 @@ Datumsauswahl.
 | Knopf | `#toggleSunPath` (`.sun-button`, Sonne) | `#toggleWorldTime` (`.world-time-button`, beschattete Erdkugel) |
 | Braucht Home-Marker | ja, sonst `disabled` | nein, immer schaltbar |
 | Zeigt | Peilkreis (403), `#sunDataPanel` | Erdschatten (401), Ortszeit-Gitter (402) |
-| Nebenwirkung | blendet die Entfernungskreise aus | keine |
+| Nebenwirkung | blendet die Entfernungskreise aus | schaltet auf `WORLD_TIME_LAYER` und zentriert die Karte auf `WORLD_TIME_VIEW` |
 
 - Sichtbar ist die Zeitauswahl, sobald **eines** der Features aktiv ist
-  ([App.ts:141-143](src/App.ts#L141-L143)). `setVisible` prüft auf echten Wechsel und feuert nur dann
+  ([App.ts:160-162](src/App.ts#L160-L162)). `setVisible` prüft auf echten Wechsel und feuert nur dann
   `visibilitychanged`, worauf `App` genau einmal `map.invalidateSize()` ruft – die Zeitleiste nimmt
   der Karte Höhe weg.
 - Die Zeitleiste kennt **keinen** Ort. Ihre Stundenskala kommt aus `setBounds` (nur das Datum), die
   Farben aus `setDay`. Nur `SunPath` kennt den Home-Marker und liefert die Farben deshalb über sein
-  Event `daychanged` ([App.ts:118](src/App.ts#L118)) – und zwar **auch im ausgeschalteten Zustand**
+  Event `daychanged` ([App.ts:129](src/App.ts#L129)) – und zwar **auch im ausgeschalteten Zustand**
   ([SunPath.ts:141-142](src/sun/SunPath.ts#L141-L142)), damit die Zeitleiste bei nur aktivierter
   Weltzeit ebenfalls Tag, Dämmerung und Nacht zeigt. Maßgeblich ist allein der Home-Marker: ohne ihn
   sendet `SunPath` `null` ([SunPath.ts:135](src/sun/SunPath.ts#L135)) und der Balken wird neutral
@@ -346,7 +349,7 @@ die Drehrichtung (`turning`) bestimmt, in welche Richtung der Kreisbogen läuft.
 
 Der Abstand ergibt sich aus dem ersten `CIRCLE_STEPS`-Eintrag mit `minZoom <= zoom`
 ([Zeile 89](src/map/DistanceCircleOverlay.ts#L89)); die Liste in
-[App.ts:23-33](src/App.ts#L23-L33) ist deshalb **von fein nach grob** sortiert – eine Umsortierung
+[App.ts:33-42](src/App.ts#L33-L42) ist deshalb **von fein nach grob** sortiert – eine Umsortierung
 ändert das Verhalten stillschweigend.
 
 `getVisibleRadiusRange` [:117](src/map/DistanceCircleOverlay.ts#L117): liegt das Zentrum im
@@ -418,7 +421,9 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 | --- | --- | --- |
 | `INITIAL_VIEW` | [17](src/App.ts#L17) | `[47.5, 13.5]`, Zoom 8 – Mitte Österreichs, willkürlich gewählt. |
 | `LOCATION_ZOOM` | [20](src/App.ts#L20) | 14; Zoom nach dem ersten GPS-Fix. |
-| `CIRCLE_STEPS` | [23-33](src/App.ts#L23-L33) | 100 m (ab Z16) … 1000 km (ab Z0). Reihenfolge fein→grob ist bindend. |
+| `WORLD_TIME_VIEW` | [27](src/App.ts#L27) | `[23.5, 16]`, Zoom 3 – Ansicht beim Einschalten der Weltzeit. Die Breite ist der nördliche Wendekreis, die Länge liegt mittig über Afrika/Europa; so passt der Erdschatten möglichst vollständig ins Bild. |
+| `WORLD_TIME_LAYER` | [30](src/App.ts#L30) | `ROAD_LAYER` – Basemap, auf die die Weltzeit zusammen mit `WORLD_TIME_VIEW` umschaltet. |
+| `CIRCLE_STEPS` | [33-42](src/App.ts#L33-L42) | 100 m (ab Z16) … 1000 km (ab Z0). Reihenfolge fein→grob ist bindend. |
 
 ### Marker
 
@@ -460,9 +465,12 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 
 ### Menüeinträge
 
-- `MAP_LAYERS` [MapLayerCatalog.ts:18-79](src/map/MapLayerCatalog.ts#L18-L79): 12 Basemaps.
+- `MAP_LAYERS` [MapLayerCatalog.ts:28-85](src/map/MapLayerCatalog.ts#L28-L85): 12 Basemaps. Der
+  Eintrag "Road" steht als `ROAD_LAYER` [:17](src/map/MapLayerCatalog.ts#L17) davor und wird in die
+  Liste hineinreferenziert, damit die Weltzeit die Definition selbst und nicht ihren Index nennen
+  kann.
   Reihenfolge = Menüreihenfolge, **Index 0 (OSM) wird beim Start automatisch aktiviert**
-  ([MapLayerSelector.ts:24](src/ui/MapLayerSelector.ts#L24)).
+  ([MapLayerSelector.ts:26](src/ui/MapLayerSelector.ts#L26)).
 - `GRID_CHOICES` [GridSelector.ts:16-29](src/ui/GridSelector.ts#L16-L29): 12 Abstufungen von 10°
   (36000") bis 1", **ausschließlich `kind: 'degrees'`**.
 
@@ -472,7 +480,7 @@ Gezeichnet wird als `MapCanvasOverlay` in **Container-Koordinaten**, nicht als L
 
 | Dienst | Aufruf | Bemerkung |
 | --- | --- | --- |
-| Tile-Server (12 Quellen) | `L.tileLayer` [MapLayerSelector.ts:39](src/ui/MapLayerSelector.ts#L39) | Layer werden **lazy** erzeugt und danach im `Map<Definition, TileLayer>` behalten, damit ein Zurückwechseln den Tile-Cache nutzt. Kein `attribution` gesetzt. Die Google-Luftbild-URL (`{s}.google.com/vt`) ist eine inoffizielle Endpunktform. |
+| Tile-Server (12 Quellen) | `L.tileLayer` [MapLayerSelector.ts:44](src/ui/MapLayerSelector.ts#L44) | Layer werden **lazy** erzeugt und danach im `Map<Definition, TileLayer>` behalten, damit ein Zurückwechseln den Tile-Cache nutzt. Kein `attribution` gesetzt. Die Google-Luftbild-URL (`{s}.google.com/vt`) ist eine inoffizielle Endpunktform. |
 | Nominatim | `GET https://nominatim.openstreetmap.org/search?q=…&format=json` [AddressSearch.ts:16/40-44](src/search/AddressSearch.ts#L40-L44) | Nur der **erste** Treffer wird verwendet. Kein Timeout, kein Retry, keine Entprellung; Nominatims Nutzungsbedingungen (max. 1 Anfrage/s) werden nicht aktiv eingehalten. |
 | Geolocation-API | `watchPosition({enableHighAccuracy: true})` [GeolocationTracker.ts:51](src/geolocation/GeolocationTracker.ts#L51) | Positionen werden verworfen, solange der Nutzer die Karte bewegt (`shouldIgnore`, [Zeile 79](src/geolocation/GeolocationTracker.ts#L79)) oder seit dem letzten Update < 500 ms vergangen sind. |
 | DeviceOrientation | `deviceorientationabsolute`, sonst `deviceorientation` [DeviceOrientationTracker.ts:24](src/geolocation/DeviceOrientationTracker.ts#L24) | Nur `…absolute` bzw. Safaris `webkitCompassHeading` sind nordbezogen; sonst wird um `screen.orientation.angle` korrigiert ([Zeile 42](src/geolocation/DeviceOrientationTracker.ts#L42)). |
@@ -497,7 +505,7 @@ Beispiel: ?setMarkers=1_red_47820532_10892944$2_green_47720849_11771851
   Farben müssen `#COLOR_PATTERN` erfüllen.
 - Der Import **ersetzt** den lokalen Bestand vollständig und schreibt ihn in `localStorage`
   ([MarkerStore.ts:81-83](src/markers/MarkerStore.ts#L81-L83)). Danach entfernt
-  [App.ts:84-85](src/App.ts#L84-L85) den Querystring per `history.replaceState`, damit ein Reload
+  [App.ts:95-96](src/App.ts#L95-L96) den Querystring per `history.replaceState`, damit ein Reload
   den geteilten Satz nicht erneut aufzwingt.
 - Der QR-Code enthält `protocol//host + pathname + ?setMarkers=…`
   ([QrCodeExport.ts:42-43](src/markers/QrCodeExport.ts#L42-L43)) – ein vorhandener Querystring der
@@ -515,7 +523,7 @@ Beispiel: ?setMarkers=1_red_47820532_10892944$2_green_47720849_11771851
 | Fehlerhafter Eintrag im Querystring | Eintrag wird still übersprungen | [MarkerUrlCodec.ts:45-50](src/markers/MarkerUrlCodec.ts#L45-L50) |
 | Nominatim: HTTP-Fehler / kein Treffer / Netzfehler | Fehlertext wird **in das Suchfeld selbst** geschrieben | [AddressSearch.ts:52-54](src/search/AddressSearch.ts#L52-L54) |
 | Geolocation nicht unterstützt | `failed` + `start()` liefert `false`, Button bleibt inaktiv | [GeolocationTracker.ts:45-48](src/geolocation/GeolocationTracker.ts#L45-L48) |
-| Geolocation-Berechtigung verweigert / Timeout | nur `console.warn`; **Tracking bleibt formal aktiv**, Button bleibt eingefärbt | [App.ts:162](src/App.ts#L162) |
+| Geolocation-Berechtigung verweigert / Timeout | nur `console.warn`; **Tracking bleibt formal aktiv**, Button bleibt eingefärbt | [App.ts:182](src/App.ts#L182) |
 | Zwischenablage verweigert | `alert()` mit Fehlermeldung | [QrCodeExport.ts:59-61](src/markers/QrCodeExport.ts#L59-L61) |
 | Markersatz zu groß für einen QR-Code | **ungefangen** – QRious wirft in `show()`, das Canvas wird nie angehängt, `#canvas` bleibt `null` (nächster Klick versucht es erneut). Grenze rechnerisch ~2953 Byte, bei ~28 Byte je Marker also grob 100 Marker | [QrCodeExport.ts:50](src/markers/QrCodeExport.ts#L50) |
 | Kein Home-Marker | Sonnen-Button ist `disabled`, Titel "Kein Marker als Home definiert". Der Weltzeit-Button bleibt bedienbar, die Zeitleiste bleibt ungefärbt. | [SunPath.ts:112-115](src/sun/SunPath.ts#L112-L115) |
@@ -523,14 +531,14 @@ Beispiel: ?setMarkers=1_red_47820532_10892944$2_green_47720849_11771851
 | Kartencontainer hat Größe 0 | Canvas-Redraw bricht ab | [MapCanvasOverlay.ts:65](src/map/MapCanvasOverlay.ts#L65) |
 
 Es gibt **kein** Logging-Framework; die einzige Diagnoseausgabe ist das `console.warn` in
-[App.ts:162](src/App.ts#L162).
+[App.ts:182](src/App.ts#L182).
 
 ---
 
 ## Erweiterungspunkte
 
 **Neue Basemap** — Eintrag in `MAP_LAYERS`
-([MapLayerCatalog.ts:18](src/map/MapLayerCatalog.ts#L18)). Titel und URL stehen bewusst an einer
+([MapLayerCatalog.ts:28](src/map/MapLayerCatalog.ts#L28)). Titel und URL stehen bewusst an einer
 Stelle; die Menüzeile entsteht daraus automatisch. Beachten: `minZoom`/`maxZoom` gehören zwingend
 dazu, sonst fordert Leaflet Kacheln an, die der Server nicht liefert. Index 0 ist die Startkarte.
 
@@ -545,7 +553,7 @@ vollständig implementiert, über die Oberfläche aber nicht erreichbar.
 Gitterwechsel gerufen. Nötig wäre ein Choice-Eintrag mit `kind: null` plus eine Verzweigung in
 `select`.
 
-**Andere Kreisabstände** — `CIRCLE_STEPS` in [App.ts:23](src/App.ts#L23). Die Liste **muss** von
+**Andere Kreisabstände** — `CIRCLE_STEPS` in [App.ts:33](src/App.ts#L33). Die Liste **muss** von
 fein nach grob sortiert bleiben, weil `find()` den ersten passenden Eintrag nimmt
 ([DistanceCircleOverlay.ts:89](src/map/DistanceCircleOverlay.ts#L89)). Der Hervorhebungsfaktor 5
 steckt separat in `EMPHASIS_INTERVAL`.
@@ -589,7 +597,7 @@ implementieren und einen `zIndex` > 400 wählen (belegt: 401 Erdschatten, 402 Or
 **Weiteres zeitabhängiges Feature** — nach dem Muster von `WorldTime`
 ([WorldTime.ts](src/sun/WorldTime.ts), 78 Zeilen) bauen: eigener Knopf in `.controlButtons`, eine
 `setTime(Date)`-Methode und ein `activechanged`-Event. In `App.connectTimeSelection`
-([App.ts:131](src/App.ts#L131)) an `momentchanged` hängen und in `updateControls` mit `|| …`
+([App.ts:150](src/App.ts#L150)) an `momentchanged` hängen und in `updateControls` mit `|| …`
 aufnehmen, damit die Zeitauswahl auch für dieses Feature erscheint. Den Zeitpunkt **nicht** selbst
 aus `new Date()` holen – er kommt ausschließlich aus `TimeSelection`.
 
@@ -606,7 +614,7 @@ aus `new Date()` holen – er kommt ausschließlich aus `TimeSelection`.
    ein natives `contextmenu`, mobiles Safari bekommt es über Leaflets eigenen `TapHold`-Handler
    simuliert (ebenfalls 600 ms). `LONG_PRESS_MS` ist damit wirkungslos.
 
-2. **Doppelklick tut zwei Dinge.** [App.ts:104](src/App.ts#L104) setzt bei `dblclick` den GPS-Pfeil
+2. **Doppelklick tut zwei Dinge.** [App.ts:115](src/App.ts#L115) setzt bei `dblclick` den GPS-Pfeil
    auf die geklickte Position; Leaflets `doubleClickZoom` ist gleichzeitig aktiv, die Karte zoomt
    also mit. Das ist ein bewusster Testpfad ohne echtes GPS, überrascht aber.
 
@@ -619,7 +627,7 @@ aus `new Date()` holen – er kommt ausschließlich aus `TimeSelection`.
 4. **QR-Code wird nicht nachgeführt.** `show()` läuft nur aus `toggle()`
    ([QrCodeExport.ts:27](src/markers/QrCodeExport.ts#L27)). Wer bei sichtbarem Code einen Marker
    ergänzt, sieht weiter den alten Link. Nur `clearall` blendet ihn aus
-   ([App.ts:99](src/App.ts#L99)).
+   ([App.ts:110](src/App.ts#L110)).
 
 5. **Import mit ID 0 kollidiert mit dem GPS-Marker.** `decode` akzeptiert jede endliche ID
    ([MarkerUrlCodec.ts:49](src/markers/MarkerUrlCodec.ts#L49)), auch 0 oder negative Werte und
@@ -638,13 +646,18 @@ aus `new Date()` holen – er kommt ausschließlich aus `TimeSelection`.
 
 7. **`SunPath.activechanged` feuert bei jedem `updateVisibility()`,** auch ohne Zustandswechsel
    ([SunPath.ts:121](src/sun/SunPath.ts#L121)). `App` löst daraus jedes Mal ein Neuzeichnen der
-   Entfernungskreise aus ([App.ts:115](src/App.ts#L115)). `WorldTime` verhält sich anders: dort
+   Entfernungskreise aus ([App.ts:126](src/App.ts#L126)). `WorldTime` verhält sich anders: dort
    bricht `setActive` bei gleichem Wert vorher ab ([WorldTime.ts:49](src/sun/WorldTime.ts#L49)).
+   Nur deshalb springt die Karte beim Einschalten der Weltzeit **einmal** in die Übersicht und nicht
+   bei jedem weiteren Ereignis.
 
 8. **Sonnenverlauf blendet die Entfernungskreise aus** – bewusst, weil sie den Peilkreis überdecken
-   würden ([App.ts:114-115](src/App.ts#L114-L115)). Das Zentrum bleibt dabei erhalten
+   würden ([App.ts:125-126](src/App.ts#L125-L126)). Das Zentrum bleibt dabei erhalten
    (`setEnabled`, nicht `clear`), Kreise kommen beim Abschalten unverändert zurück. Die **Weltzeit**
-   tut das nicht – bei ihr bleiben die Kreise sichtbar.
+   tut das nicht – bei ihr bleiben die Kreise sichtbar. Sie **verwirft dafür Kartentyp und
+   Ausschnitt**: Einschalten wählt `WORLD_TIME_LAYER` und setzt die Ansicht auf `WORLD_TIME_VIEW`
+   ([App.ts:138-142](src/App.ts#L138-L142)). Beides wird nicht gemerkt und beim Abschalten nicht
+   wiederhergestellt.
 
 9. **Alle Uhrzeiten sind in der Zeitzone des Nutzers,** auch wenn der Home-Marker auf einem anderen
    Kontinent liegt ([SunDataPanel.ts:6-7](src/sun/SunDataPanel.ts#L6-L7)). Die Zeitleiste spannt

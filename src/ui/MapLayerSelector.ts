@@ -7,6 +7,7 @@ import { MAP_LAYERS, type MapLayerDefinition } from '../map/MapLayerCatalog';
  * switching back to a map that was shown before keeps its cached tiles.
  */
 export class MapLayerSelector {
+    readonly #entries = new Map<MapLayerDefinition, HTMLElement>();
     readonly #layers = new Map<MapLayerDefinition, L.TileLayer>();
     #current: L.TileLayer | null = null;
 
@@ -19,18 +20,22 @@ export class MapLayerSelector {
         definitions.forEach((definition, index) => {
             const entry = document.createElement('div');
             entry.textContent = definition.title;
-            entry.addEventListener('click', () => this.select(definition, entry));
+            entry.addEventListener('click', () => this.select(definition));
             container.appendChild(entry);
-            if (index === 0) this.select(definition, entry);
+            this.#entries.set(definition, entry);
+            if (index === 0) this.select(definition);
         });
     }
 
     /**
-     * Shows one base map.
+     * Shows one base map and marks its menu entry as the active one. A definition
+     * that is not part of the menu is ignored, because there is no entry to mark.
      * @param definition Selected base map.
-     * @param entry Element of the entry, marked as the active one.
      */
-    private select(definition: MapLayerDefinition, entry: HTMLElement): void {
+    select(definition: MapLayerDefinition): void {
+        const entry = this.#entries.get(definition);
+        if (!entry) return;
+
         for (const sibling of entry.parentElement?.children ?? []) sibling.classList.remove('active');
         entry.classList.add('active');
 

@@ -3,6 +3,7 @@ import { requireElement } from './core/Dom';
 import { DeviceOrientationTracker } from './geolocation/DeviceOrientationTracker';
 import { GeolocationTracker } from './geolocation/GeolocationTracker';
 import { DistanceCircleOverlay, type DistanceCircleStep } from './map/DistanceCircleOverlay';
+import { ROAD_LAYER } from './map/MapLayerCatalog';
 import { MarkerController } from './markers/MarkerController';
 import { QrCodeExport } from './markers/QrCodeExport';
 import { AddressSearch } from './search/AddressSearch';
@@ -18,6 +19,15 @@ const INITIAL_VIEW = { center: [47.5, 13.5] as [number, number], zoom: 8 };
 
 /** Zoom level the map jumps to when the gps position is switched on. */
 const LOCATION_ZOOM = 14;
+
+/**
+ * View the map jumps to when the world time is switched on. Its overlays cover the
+ * whole globe, so the view shows as much of the earth as possible.
+ */
+const WORLD_TIME_VIEW = { center: [23.5, 16] as [number, number], zoom: 3 };
+
+/** Base map switched to together with WORLD_TIME_VIEW. */
+const WORLD_TIME_LAYER = ROAD_LAYER;
 
 /** Spacing of the distance circles per zoom level, from fine to coarse. */
 const CIRCLE_STEPS: readonly DistanceCircleStep[] = [
@@ -38,6 +48,7 @@ const CIRCLE_STEPS: readonly DistanceCircleStep[] = [
  */
 export class App {
     readonly #map: L.Map;
+    readonly #mapLayers: MapLayerSelector;
     readonly #circles: DistanceCircleOverlay;
     readonly #markers: MarkerController;
     readonly #time: TimeSelection;
@@ -53,7 +64,7 @@ export class App {
         L.control.zoom({ position: 'topright' }).addTo(this.#map);
         this.trackUserInteraction();
 
-        new MapLayerSelector(requireElement('mapTypeList'), this.#map);
+        this.#mapLayers = new MapLayerSelector(requireElement('mapTypeList'), this.#map);
         new GridSelector(requireElement('stepList'), this.#map);
 
         this.#circles = new DistanceCircleOverlay(this.#map, { steps: CIRCLE_STEPS, labels: true });
@@ -121,7 +132,15 @@ export class App {
 
     /** Creates the world time feature: earth shadow and true local time grid. */
     private createWorldTime(): WorldTime {
-        return new WorldTime(this.#map, requireElement('toggleWorldTime', HTMLButtonElement));
+        const worldTime = new WorldTime(this.#map, requireElement('toggleWorldTime', HTMLButtonElement));
+        // The shadow and the time grid span the whole globe; a detailed view would
+        // show only a fragment of them.
+        worldTime.on('activechanged', (active) => {
+            if (!active) return;
+            this.#mapLayers.select(WORLD_TIME_LAYER);
+            this.#map.setView(WORLD_TIME_VIEW.center, WORLD_TIME_VIEW.zoom);
+        });
+        return worldTime;
     }
 
     /**

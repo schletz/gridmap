@@ -11,6 +11,16 @@ export interface MapLayerDefinition {
 }
 
 /**
+ * Plain road map. It is named because other features switch to it, so they can
+ * reference the definition itself instead of its position in MAP_LAYERS.
+ */
+export const ROAD_LAYER: MapLayerDefinition = {
+    title: 'Road',
+    url: 'https://tiles.bergfex.at/styles/bergfex-osm/{z}/{x}/{y}.jpg',
+    options: { maxZoom: 19, opacity: 0.8 }
+};
+
+/**
  * All base maps in the order they appear in the menu. The previous version kept
  * this list split between the markup (labels) and the bootstrap script (urls),
  * which made adding a map a two step change.
@@ -26,11 +36,7 @@ export const MAP_LAYERS: readonly MapLayerDefinition[] = [
         url: 'https://b.tile.opentopomap.org/{z}/{x}/{y}.png',
         options: { maxZoom: 17 }
     },
-    {
-        title: 'Road',
-        url: 'https://tiles.bergfex.at/styles/bergfex-osm/{z}/{x}/{y}.jpg',
-        options: { maxZoom: 19, opacity: 0.8 }
-    },
+    ROAD_LAYER,
     {
         title: 'Luftbild',
         url: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
